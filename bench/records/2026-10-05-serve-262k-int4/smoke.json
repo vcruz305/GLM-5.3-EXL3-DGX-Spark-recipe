@@ -1,0 +1,260 @@
+{
+ "thinking_off": {
+  "ids": [
+   3925,
+   154827
+  ],
+  "n": 2,
+  "finish": "stop",
+  "usage": {
+   "prompt_tokens": 22,
+   "completion_tokens": 2,
+   "total_tokens": 24,
+   "prompt_tokens_details": {
+    "cached_tokens": 0
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   }
+  },
+  "stats": {
+   "prefill_s": 0.6461566250072792,
+   "decode_s": 0.07399164300295524,
+   "tokens": 2,
+   "rounds": 1,
+   "tokens_per_round": 1.0,
+   "accept": 0.0,
+   "tok_s": 13.52,
+   "round_ms": {
+    "p10": 74.0,
+    "p50": 74.0,
+    "p90": 74.0,
+    "max": 74.0,
+    "mean": 74.0
+   },
+   "mtp_mode": "dflash",
+   "depth": 7,
+   "confidence": 0.6,
+   "ms_per_round": {
+    "draft": 7.55,
+    "verify": 65.67,
+    "taps": 0.73
+   },
+   "graphs": 144,
+   "capture_s": 8.8,
+   "sha256": "0adafa51f1d7f111",
+   "mtp_drafts": 0,
+   "tf_serve": {
+    "mode": "dflash",
+    "consensus": "ok"
+   },
+   "token_sha": "694aab7656bc"
+  },
+  "content": "OK",
+  "reasoning": "",
+  "chunks": 1,
+  "both_in_one_chunk": 0,
+  "ttft_s": 0.6486765700101387,
+  "total_s": 0.7234976190084126,
+  "client_tok_s": null
+ },
+ "thinking_on": {
+  "ids": [
+   99419,
+   353,
+   220,
+   99619,
+   284,
+   220,
+   99419,
+   353,
+   220,
+   98360,
+   488,
+   220,
+   99419,
+   353,
+   220,
+   18,
+   284,
+   220,
+   121910,
+   488,
+   220,
+   102624,
+   284,
+   220,
+   101294,
+   16,
+   154842,
+   101294,
+   16,
+   154827
+  ],
+  "n": 30,
+  "finish": "stop",
+  "usage": {
+   "prompt_tokens": 25,
+   "completion_tokens": 30,
+   "total_tokens": 55,
+   "prompt_tokens_details": {
+    "cached_tokens": 0
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 27
+   }
+  },
+  "stats": {
+   "prefill_s": 0.2135746370186098,
+   "decode_s": 0.4944594020198565,
+   "tokens": 30,
+   "rounds": 5,
+   "tokens_per_round": 5.8,
+   "accept": 0.833,
+   "tok_s": 58.65,
+   "round_ms": {
+    "p10": 93.3,
+    "p50": 97.4,
+    "p90": 108.8,
+    "max": 108.8,
+    "mean": 98.9
+   },
+   "mtp_mode": "dflash",
+   "depth": 7,
+   "confidence": 0.6,
+   "ms_per_round": {
+    "draft": 7.35,
+    "verify": 90.66,
+    "taps": 0.75
+   },
+   "graphs": 144,
+   "capture_s": 8.8,
+   "sha256": "c339d25ca7e8d0d1",
+   "mtp_drafts": 0,
+   "tf_serve": {
+    "mode": "dflash",
+    "consensus": "ok"
+   },
+   "token_sha": "8ca2bee34563"
+  },
+  "content": "391",
+  "reasoning": "17 * 23 = 17 * 20 + 17 * 3 = 340 + 51 = 391",
+  "chunks": 28,
+  "both_in_one_chunk": 0,
+  "ttft_s": 0.21699806599644944,
+  "total_s": 0.7133976049954072,
+  "client_tok_s": 58.646389122652096
+ },
+ "checks": [
+  {
+   "check": "/v1/models lists the served name",
+   "ok": true,
+   "detail": "['GLM-5.3-EXL3-3.38bpw', 'glm-5.3']"
+  },
+  {
+   "check": "/health 200",
+   "ok": true,
+   "detail": "{\"ok\": true, \"backend\": \"tensorfold\", \"busy\": false, \"requests_running\": 0, \"requests_total\": 0, \"prompt_tokens_total\": 0, \"completion_tokens_total\": 0, \"prefill_seconds_total\": 0, \"decode_seconds_tot"
+  },
+  {
+   "check": "/tokenize code thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "52 vs 52 tokens, first diff None"
+  },
+  {
+   "check": "/tokenize prose thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "45 vs 45 tokens, first diff None"
+  },
+  {
+   "check": "/tokenize math thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "59 vs 59 tokens, first diff None"
+  },
+  {
+   "check": "/tokenize chat_explain thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "73 vs 73 tokens, first diff None"
+  },
+  {
+   "check": "/tokenize chat_multiturn thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "174 vs 174 tokens, first diff None"
+  },
+  {
+   "check": "/tokenize long_doc thinking on == sweep prompt ids",
+   "ok": true,
+   "detail": "2842 vs 2842 tokens, first diff None"
+  },
+  {
+   "check": "thinking off prompt ends <|assistant|></think>",
+   "ok": true,
+   "detail": "[13, 154828, 154842]"
+  },
+  {
+   "check": "thinking on prompt ends <|assistant|><think>",
+   "ok": true,
+   "detail": "[13, 154828, 154841]"
+  },
+  {
+   "check": "thinking off: no error",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "thinking off: finish stop at a turn-end id",
+   "ok": true,
+   "detail": "finish stop, last id [154827], n 2"
+  },
+  {
+   "check": "thinking off: empty reasoning, content has OK",
+   "ok": true,
+   "detail": "content 'OK'"
+  },
+  {
+   "check": "thinking off: no markup leak",
+   "ok": true,
+   "detail": "OK"
+  },
+  {
+   "check": "thinking on: no error",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "thinking on: reasoning non-empty",
+   "ok": true,
+   "detail": "43 chars"
+  },
+  {
+   "check": "thinking on: no markup leak in either channel",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "thinking on: stops at a turn-end id with an answer",
+   "ok": true,
+   "detail": "content '391'"
+  },
+  {
+   "check": "drafted ids == \"draft\": false ids",
+   "ok": true,
+   "detail": "n 49 / 49, modes {'mode': 'serial', 'consensus': 'ok'} / {'mode': 'dflash', 'consensus': 'ok'}"
+  },
+  {
+   "check": "default request drafts with DFlash2",
+   "ok": true,
+   "detail": "mtp_mode dflash, depth 7, confidence 0.6"
+  },
+  {
+   "check": "tf_mtp other than dflash refused",
+   "ok": true,
+   "detail": "{'message': 'tf_mtp \\'auto\\': this server drafts with DFlash2 only (\"tf_mtp\": \"dflash\", the default); send \"draft\": false for the serial reference', 'type': 'se"
+  }
+ ],
+ "ok": true,
+ "base": "http://127.0.0.1:8891/v1",
+ "model": "GLM-5.3-EXL3-3.38bpw",
+ "started": 1791224865.188056,
+ "wall_s": 4.8
+}

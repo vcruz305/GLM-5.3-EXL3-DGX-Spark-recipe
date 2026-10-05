@@ -8,17 +8,18 @@ sparse attention) from the SAGE MixedK EXL3 pack
 The engine is [TensorFold](https://github.com/ashhart/TensorFold)'s full-GLM-5.3 tensor-parallel CUDA engine
 ([PR #159](https://github.com/ashhart/TensorFold/pull/159) by [@drowzeys](https://github.com/drowzeys), still open),
 plus two loader fixes this pack needs. It runs on the
-[`glm53-tp4-spark`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark) branch of my TensorFold fork. Decode
+[`glm53-tp4-spark`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark) branch of my TensorFold fork (see
+[Upstream status](#upstream-status)). Decode
 reductions go over the ConnectX-7 fabric with [b12x](https://github.com/local-inference-lab/b12x)'s RoCE one-shot
 all-reduce. Drafting uses the [DFlash2](https://huggingface.co/incoai/GLM-5.3-DFlash2) drafter. **Drafted replies are
 token-identical to serial decoding:** every measured drafted reply equals the `"draft": false` reply, token for token.
 
-> **Using an AI agent to set this up?** It should read [Do not](#do-not) and
+> **Using an AI agent to set this up?** It should read [`AGENTS.md`](AGENTS.md), [Do not](#do-not) and
 > [Troubleshooting](#troubleshooting) before running anything, then follow [Quick start](#quick-start) literally.
 
 | Sparks | Folder | Model | Engine | Status |
 |---|---|---|---|---|
-| **4** | [`tensorfold-four-spark-tp4/`](tensorfold-four-spark-tp4/README.md) | [`GLM-5.3-EXL3-3.38bpw`](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) + [DFlash2](https://huggingface.co/incoai/GLM-5.3-DFlash2) drafter | TensorFold PR #159 (`glm_moe_dsa`, TP=4) + b12x RoCE | **Measured** (2026-10-05) on the stack this folder packages; this repo's own scripts are statically checked only, see [Measurement status](#measurement-status) |
+| **4** | [`tensorfold-four-spark-tp4/`](tensorfold-four-spark-tp4/README.md), driven by [`./glm53`](glm53) | [`GLM-5.3-EXL3-3.38bpw`](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) + [DFlash2](https://huggingface.co/incoai/GLM-5.3-DFlash2) drafter | TensorFold PR #159 (`glm_moe_dsa`, TP=4) + b12x RoCE | **Measured** (2026-10-05) on the stack this folder packages; this repo's own scripts are statically checked only, see [Measurement status](#measurement-status) |
 
 ## Performance
 
@@ -86,48 +87,57 @@ context 32768, median of 3; [`bench/records/2026-10-05-sweep/`](bench/records/20
 | Earlier: exllamav3 4-stage pipeline, SixCat decode | 8.05 tok/s |
 
 The two exllamav3 rows are earlier runs on the same pack and Sparks, kept for scale; their records are not in this
-repo. The other profiles (262K with decode context parallelism, measured; int4 KV cache, pending validation) are in
-the [folder README](tensorfold-four-spark-tp4/README.md#profiles).
+repo.
+
+**Other profiles** (`./glm53 up --profile NAME`; details in the
+[folder README](tensorfold-four-spark-tp4/README.md#profiles)):
+
+| Profile | Context | KV cache | Decode with DFlash2, mean of 6 | SixCat decode / prefill p50 | Status |
+|---|---:|---|---:|---:|---|
+| `fast-160k` (default) | 163,840 | bf16, whole on every rank | 41.11 tok/s | 69.19 / 313.4 tok/s | measured |
+| `int4-262k` | 262,144 | int4 latent, whole on every rank | 40.62 tok/s TODO(confirm) | 68.18 / 307.9 tok/s TODO(confirm) | opt-in: quality gate not finished |
+| `dcp4-262k` | 262,144 | bf16, split across ranks | 35.91 tok/s | 57.08 / 232.2 tok/s | measured; another numeric path |
+
+The `int4-262k` figures were measured with the same TensorFold tree through a copy of `lib/` and the operator's own
+launcher, not through this repo's entry scripts, so they stay TODO(confirm)
+([record](bench/records/2026-10-05-serve-262k-int4/README.md)). Its teacher-forced quality gate against exllamav3's
+Q4 cache passed on the prompt path (160 rows); the decode path is still being finished, so the profile needs
+`--allow-unvalidated` until then.
 
 ### Measurement status
 
-Every number above was measured on 2026-10-05 with the operator stack this folder packages: the same TensorFold tree
-(byte-identical diff, checked by hash), the same `lib/` wrappers, pinned tile table, b12x commit, drafter, BF16
-lm_head and chat template. The raw records are in [`bench/records/`](bench/records/README.md). This repo's
-`setup.sh` → `serve.sh up` → `serve.sh bench` sequence has been checked statically (`bash -n`, `py_compile`,
-`DRY_RUN=1` of every step and profile) but has **not** yet been run end to end on fresh Sparks:
-TODO(confirm) by one session that follows [Quick start](#quick-start) literally.
+Every number above except the `int4-262k` row was measured on 2026-10-05 with the operator stack this folder
+packages: the same TensorFold tree (byte-identical diff, checked by hash), the same `lib/` wrappers, pinned tile
+table, b12x commit, drafter, BF16 lm_head and chat template. The raw records are in
+[`bench/records/`](bench/records/README.md). This repo's `./glm53 init` → `setup` → `up` → `bench` sequence (and the
+`setup.sh` / `serve.sh` scripts under it) has been checked statically (`bash -n`, `py_compile`, `--dry-run` of every
+command and profile, and the launcher with ssh and rsync replaced by stand-ins) but has **not** yet been run end to
+end on fresh Sparks: TODO(confirm) by one session that follows [Quick start](#quick-start) literally.
 
 ## Quick start
 
-On **each of the four Sparks**, in a clone at the same path:
+From the machine that drives the cluster: one of the Sparks, or any Linux / macOS box with `bash` 4+, `ssh` and
+`rsync` that reaches all four without a password. Request access to the
+[pack](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) on Hugging Face first (it is gated).
 
 ```bash
-git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git
-cd GLM-5.3-EXL3-DGX-Spark-recipe
-bash tensorfold-four-spark-tp4/setup.sh
+git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git && cd GLM-5.3-EXL3-DGX-Spark-recipe
+./glm53 init --hosts spark-a,spark-b,spark-c,spark-d   # ranks 0-3 by ssh target; finds each fabric IP, checks ssh
+HF_TOKEN=hf_... ./glm53 setup --download-once          # all four in parallel; one 319 GB download, copied over the fabric
+./glm53 up                                             # preflight, then ~8 min to READY (first start: longer)
+./glm53 chat "Explain RoCE in two sentences."
 ```
 
-The pack is gated: request access on its Hugging Face page first. Without a Hugging Face token, the first run stops
-before the downloads and prints the login command (`~/glm53-tensorfold/venv/bin/hf auth login`); run `setup.sh`
-again after it.
-
-`setup.sh` builds a venv (torch cu130), checks out the pinned TensorFold commit, stages b12x, downloads the pack
-(319 GB), the drafter and the BF16 lm_head (1.9 GB, range-read from zai-org/GLM-5.3), and builds the serve view.
-Re-running it is safe; downloads resume.
-
-Then, on the machine that will drive the cluster (rank 0 itself is fine):
-
-```bash
-cp tensorfold-four-spark-tp4/hosts.example tensorfold-four-spark-tp4/hosts
-$EDITOR tensorfold-four-spark-tp4/hosts                # rank, ssh target, fabric IP for each Spark
-bash tensorfold-four-spark-tp4/serve.sh preflight      # must print "preflight OK on all four"
-bash tensorfold-four-spark-tp4/serve.sh up             # ~7-8 min: watchdogs, ranks 1-3, rank 0, "READY"
-bash tensorfold-four-spark-tp4/serve.sh smoke
-```
-
-The API is `http://127.0.0.1:8890/v1` on rank 0, model id `GLM-5.3-EXL3-3.38bpw` (`serve.sh tunnel` prints an ssh
-tunnel command for another machine):
+- `init` prints the exact commands for anything missing (ssh keys from here to the Sparks and from rank 0 to ranks
+  1-3, a fabric port without an address). `setup` copies this clone to every Spark, runs
+  `tensorfold-four-spark-tp4/setup.sh` on all four with one log each, and prints a summary with the fix for each
+  failure; re-running it resumes. Without `--download-once` each Spark downloads the pack itself; with
+  `--model-dir /path/to/pack` an existing copy is checked and used instead.
+- The API is `http://127.0.0.1:8890/v1` on rank 0, model id `GLM-5.3-EXL3-3.38bpw`. `./glm53 tunnel --open` brings it to
+  the driver's `127.0.0.1:8890`.
+- `./glm53 smoke`, `./glm53 bench` (the 6 reference prompts: ids and tok/s), `./glm53 status`, `./glm53 logs`,
+  `./glm53 down`. `--dry-run` on any command prints every ssh / rsync command and runs nothing. `./glm53 help` lists
+  everything.
 
 ```bash
 curl -s http://127.0.0.1:8890/v1/chat/completions -H 'Content-Type: application/json' -d '{
@@ -140,9 +150,26 @@ curl -s http://127.0.0.1:8890/v1/chat/completions -H 'Content-Type: application/
 - Thinking is on by default. `"chat_template_kwargs": {"enable_thinking": false}` turns it off.
 - Sampling defaults to the model's (temperature 1.0, top-p 0.95). The numbers above are greedy
   (`"temperature": 0`); the speed-up at temperature > 0 has not been measured.
-- `bash tensorfold-four-spark-tp4/serve.sh down` stops all four. `DRY_RUN=1` on any `serve.sh` step prints the commands.
 
-Requirements, profiles, guards and every knob: [`tensorfold-four-spark-tp4/README.md`](tensorfold-four-spark-tp4/README.md).
+Requirements, profiles, guards, every knob and the manual path (`setup.sh` on each Spark, then `serve.sh`):
+[`tensorfold-four-spark-tp4/README.md`](tensorfold-four-spark-tp4/README.md).
+
+## Upstream status
+
+- **The runtime is [ashhart/TensorFold PR #159](https://github.com/ashhart/TensorFold/pull/159)** (`glm-moe-dsa-tp4`
+  by [@drowzeys](https://github.com/drowzeys), open), plus my fixes on two branches of
+  [vcruz305/TensorFold](https://github.com/vcruz305/TensorFold):
+  [`glm53-tp4-spark`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark) @ `757a851` (the loader fixes this
+  pack needs: per-layer handle and page-cache release, fail-closed fp16 → bf16 cast; the default profiles) and
+  [`glm53-kv-int4`](https://github.com/vcruz305/TensorFold/tree/glm53-kv-int4) @ `0c858e3` (those plus the int4 / int8
+  latent KV cache; `int4-262k`).
+- **The same changes are prepared as PR branches on the fork, to be opened into PR #159's branch:**
+  `glm53-gb10-loading` (GB10 loading fixes), `glm53-dflash-default` (DFlash2 by default),
+  `glm53-pinned-tiles` (pinned tile table), `glm53-roce-health` (RoCE health check) and
+  `glm53-kv-cache-int4` (the int4 / int8 KV cache, stacked on `glm53-gb10-loading`). PRs to be linked when they are
+  opened.
+- **This recipe pins the fork commits** (`env.sh`: `757a851`, and `0c858e3` for `int4-262k`), so it works before any
+  of that lands. The pins move only after a session re-measures the new tree through these scripts.
 
 ## Quants
 
@@ -184,7 +211,8 @@ gate (G2) on the pinned table was started and stopped before it finished: TODO(c
 
 | Path | What it is |
 |---|---|
-| [`tensorfold-four-spark-tp4/`](tensorfold-four-spark-tp4/README.md) | **The recipe.** `setup.sh`, `serve.sh`, `rank.sh`, `chat.sh`, `drop-model-cache.sh`, `env.sh`, `profiles/`, `hosts.example`, the launcher and its wrappers (`lib/`), the pinned tile table (`tiles/`), `tools/` |
+| [`glm53`](glm53) | **The entry point**: `init`, `setup`, `up`, `chat`, `smoke`, `bench`, `status`, `logs`, `tunnel`, `down` for all four Sparks from one machine (runs `tensorfold-four-spark-tp4/run.sh`) |
+| [`tensorfold-four-spark-tp4/`](tensorfold-four-spark-tp4/README.md) | **The recipe.** `run.sh` (the launcher), `setup.sh`, `serve.sh`, `rank.sh`, `chat.sh`, `drop-model-cache.sh`, `env.sh`, `profiles/`, `hosts.example`, the engine launcher and its wrappers (`lib/`), the pinned tile table (`tiles/`), `tools/` |
 | [`bench/`](bench/) | Engine-neutral `/v1` clients: `bench_v1.py` (smoke + the 6-prompt benchmark), `longctx_run.py` + `make_prompts.py` (long prompts), the reference prompts and ids |
 | [`bench/records/`](bench/records/README.md) | The measurement records behind every number in this README |
 | [`docs/`](docs/README.md) | A static benchmark viewer over `docs/benchmark-data.json` |
@@ -194,34 +222,46 @@ gate (G2) on the pinned table was started and stopped before it finished: TODO(c
 
 - **Do not install TensorFold from PyPI, a release tag or `ashhart/TensorFold` main.** None of them has the
   `glm_moe_dsa` family yet (PR #159 is open), and PR #159 alone does not load this pack (host memory and fp16
-  tensors, see the folder README). `setup.sh` checks out the pinned `vcruz305/TensorFold` commit; every launcher
+  tensors, see the folder README). `setup.sh` checks out the pinned `vcruz305/TensorFold` commits; every launcher
   refuses another tree.
+- **Do not repoint the pins at the upstream PR branches** (`glm53-gb10-loading` and the rest). They rename functions
+  the runtime check looks for, and none of them has been measured through these scripts.
 - **Do not `pip install b12x`.** PyPI 1.3.0 has no `comm.roce` module. `setup.sh` stages commit `b58f34e`.
 - **Do not serve the pack directory.** TensorFold needs the BF16 `lm_head.weight` and the fixed chat template; both
   live in the serve view `setup.sh` builds. The pack is never edited.
 - **Do not run bf16 at 262,144 tokens with `TF_GLM53_DCP=1`.** It swapped and tripped the watchdog. Use the default
-  profile, or `PROFILE=dcp4-262k`.
+  profile, `--profile int4-262k --allow-unvalidated` or `--profile dcp4-262k`.
 - **Do not lower `TF_GLM53_CACHE_RESERVE_GB`, disable the watchdog or allow swap growth** to make a context fit. A
   Spark that swaps under this load can hang until its watchdog reboots it.
 - **Do not pass `--parallel`.** The server answers one request at a time; `--parallel N>1` switches TensorFold to a
   different scheduler that was never measured with this recipe.
-- **Do not use `PROFILE=int4-262k`** unless asked to validate it. It is pending validation and needs
-  `ALLOW_UNVALIDATED=1`.
-- **Do not edit the TensorFold checkout** under `~/glm53-tensorfold/`. `verify_runtime` refuses a dirty or moved tree.
+- **Do not use `--profile int4-262k` / `--allow-unvalidated`** unless asked to: its quality gate is not finished.
+- **Do not edit the TensorFold checkouts** under `~/glm53-tensorfold/`. `verify_runtime` refuses a dirty or moved tree.
 - **Do not start while another job holds a GPU** on any of the four Sparks. `preflight` and `rank.sh start` refuse.
+- **Do not put a Hugging Face token on a command line** that is logged or shared; `HF_TOKEN=... ./glm53 setup` passes
+  it to the Sparks over ssh stdin only.
 - **Do not quote the SixCat decode figure as user-facing speed**, and do not redistribute the DFlash2 weights
   (CC BY-NC-ND 4.0: non-commercial use only).
 
 ## Troubleshooting
 
+Every `./glm53` command that fails prints a `To fix:` block with the command for each failure it recognises; the full
+output stays in `tensorfold-four-spark-tp4/runs/`.
+
 | Symptom | Cause / fix |
 |---|---|
-| `TensorFold at ... is <sha>, the recipe pins ...` / `lacks the measured loader fixes` | another TensorFold tree; re-run `setup.sh` |
-| `no b12x RoCE module staged` | re-run `setup.sh` (needs `gcc` + `libibverbs-dev`), or `TFS_ROCE=0` for NCCL reductions (measured 37.07 vs 41.42 tok/s) |
-| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not this Spark's address on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA` |
-| `context ... needs ... GiB of caches a rank, ... is free` | page cache from a download or another load: `serve.sh fadvise` (or `drop-model-cache.sh` on that Spark), stop other jobs |
-| `rank 0 cannot 'ssh -o BatchMode=yes <peer>'` | rank 0's watchdog stops the peers over ssh: set up keys from rank 0 to ranks 1-3, or a `peer_ssh` column in the hosts file |
-| `START FAILED` / `FATAL` in a rank log | `serve.sh logs`, read `rank*.log` (`[tf_serve] FATAL ...`) and the watchdog log, then `serve.sh down` and `preflight` |
+| `no hosts file yet` | `./glm53 init --hosts H0,H1,H2,H3` (rank 0 first) |
+| `init`: `ssh to <host> failed`, `rank 0 -> rank N: FAILED` | run the printed `ssh-copy-id` / key / `StrictHostKeyChecking=accept-new` lines, then `./glm53 init ... --force`. Rank 0's watchdog stops the peers over ssh, and `--download-once` copies over it |
+| `init`: `no IPv4 address on FABRIC_IFNAME=...` | `FABRIC_IFNAME=<ConnectX-7 port> ./glm53 init ... --force` (it lists each Spark's addresses), or `--fabric-ips A,B,C,D` |
+| `setup`: `no Hugging Face token` | request access to the pack, then `HF_TOKEN=hf_... ./glm53 setup` |
+| `setup`: `no Python.h`, `gcc + libibverbs`, `nvcc not found` | `sudo apt install -y libpython3.12-dev` / `gcc libibverbs-dev`, or `CUDA_HOME=<CUDA 13>`; then `./glm53 setup` again |
+| `TensorFold at ... is <sha>, the recipe pins ...` / `lacks the measured loader fixes` | another TensorFold tree; `./glm53 setup` |
+| `recipe clone at <sha>, here <sha>` | `./glm53 sync` |
+| `no b12x RoCE module staged` | `./glm53 setup` (needs `gcc` + `libibverbs-dev`), or `TFS_ROCE=0` for NCCL reductions (measured 37.07 vs 41.42 tok/s) |
+| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not this Spark's address on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` |
+| `context ... needs ... GiB of caches a rank, ... is free` / `LOW MEMORY` | page cache from a download or another load: `./glm53 fadvise`, stop other jobs |
+| `profile int4-262k is not validated yet` | intended; `--allow-unvalidated` only when asked to run it |
+| `START FAILED` / `FATAL` in a rank log | `./glm53 logs`, read `rank*.log` (`[tf_serve] FATAL ...`) and the watchdog log, then `./glm53 down` and `./glm53 preflight` |
 | replies end with `finish_reason: length`, only `reasoning_content` | the reply spent `max_tokens` thinking: raise it or send thinking off |
 | decode far below the tables | check the reply's `tensorfold` stats (`mtp_mode` `dflash`, `depth` 7, `confidence` 0.6) and the rank 0 log line `decode-window reductions: RoCE one-shot` |
 

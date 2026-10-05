@@ -1,0 +1,13 @@
+# derived from memwatch_rank{0..3}.log of this boot: each node's last watchdog session (the int4 262K boot of 2026-10-05 18:15 UTC). Per node: the start event, a summary of its 1 s samples (sample count, min MemAvailable GiB over the whole session = load + warm-up + tests, min MemAvailable GiB from the first request (smoke, t >= 1791224864) to the stop, max swap growth kB) and the stop event. Raw sample logs (~1.6 MB a node) are not included.
+{"rank": 0, "event": "start", "t": 1791224143.1210515, "host": "spark-0", "central": true, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 243036, "mem_available_kb": 123789604, "pid": 2513805}
+{"rank": 0, "session_summary": {"n": 1839, "min_avail_gib": 9.01, "min_avail_gib_from_first_request": 12.24, "max_swap_delta_kb": 0}}
+{"rank": 0, "event": "stop", "t": 1791226617.5248601, "min_avail_gib": 9.01, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 1, "event": "start", "t": 1791224133.2515152, "host": "spark-1", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 258776, "mem_available_kb": 121399792, "pid": 3081496}
+{"rank": 1, "session_summary": {"n": 2431, "min_avail_gib": 6.35, "min_avail_gib_from_first_request": 10.18, "max_swap_delta_kb": 0}}
+{"rank": 1, "event": "stop", "t": 1791226620.1815155, "min_avail_gib": 6.35, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 2, "event": "start", "t": 1791224136.4083095, "host": "spark-2", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 231860, "mem_available_kb": 123403916, "pid": 3975574}
+{"rank": 2, "session_summary": {"n": 2435, "min_avail_gib": 8.34, "min_avail_gib_from_first_request": 12.03, "max_swap_delta_kb": 0}}
+{"rank": 2, "event": "stop", "t": 1791226623.717095, "min_avail_gib": 8.34, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 3, "event": "start", "t": 1791224139.7250805, "host": "spark-3", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 2190652, "mem_available_kb": 123496084, "pid": 43341}
+{"rank": 3, "session_summary": {"n": 2436, "min_avail_gib": 7.7, "min_avail_gib_from_first_request": 12.24, "max_swap_delta_kb": 0}}
+{"rank": 3, "event": "stop", "t": 1791226627.0600712, "min_avail_gib": 7.7, "max_swap_delta_kb": 0, "tripped": false}

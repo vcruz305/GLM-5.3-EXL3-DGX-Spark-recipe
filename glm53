@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# GLM-5.3 on four DGX Sparks (TensorFold TP=4): the one entry point. Run it from the machine that drives the cluster.
+#   ./glm53 init --hosts spark-a,spark-b,spark-c,spark-d  ->  ./glm53 setup  ->  ./glm53 up  ->  ./glm53 chat "Hi"
+# ./glm53 help lists every command; the implementation is tensorfold-four-spark-tp4/run.sh.
+exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tensorfold-four-spark-tp4/run.sh" "$@"

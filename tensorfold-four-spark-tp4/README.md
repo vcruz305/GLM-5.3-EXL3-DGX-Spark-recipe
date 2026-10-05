@@ -1,15 +1,18 @@
 # Four DGX Sparks: TensorFold TP=4
 
-**Model:** [`vcruz305/GLM-5.3-EXL3-3.38bpw`](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) (revision
-`cc64e77`, 58 shards, 319 GB) + the original BF16 `lm_head.weight` from
+**Model:** [`vcruz305/GLM-5.3-EXL3-3.38bpw`](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) (SAGE MixedK,
+3.38 bpw, revision `cc64e77`, 58 shards, 319 GB) + the original BF16 `lm_head.weight` from
 [zai-org/GLM-5.3](https://huggingface.co/zai-org/GLM-5.3) (revision `aca966e`)
 **Drafter:** [`incoai/GLM-5.3-DFlash2`](https://huggingface.co/incoai/GLM-5.3-DFlash2) (revision `425aa61`,
 CC BY-NC-ND 4.0: non-commercial use only)
 **Engine:** TensorFold PR #159 (`glm_moe_dsa`, TP=4) + two loader fixes =
-[`vcruz305/TensorFold@757a851`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark), b12x `b58f34e` RoCE
-reductions
-**Status:** measured 2026-10-05 on the stack these scripts package; the scripts themselves are statically checked
-only (see the root README's [Measurement status](../README.md#measurement-status))
+[`vcruz305/TensorFold@757a851`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark); for `int4-262k` also the
+int4 KV cache, [`vcruz305/TensorFold@0c858e3`](https://github.com/vcruz305/TensorFold/tree/glm53-kv-int4); b12x
+`b58f34e` RoCE reductions
+**Entry point:** [`../glm53`](../glm53) (this folder's `run.sh`): `init`, `setup`, `up`, `chat`, ... from one machine
+**Status:** `fast-160k` and `dcp4-262k` measured 2026-10-05 on the stack these scripts package; `int4-262k` measured
+through a copy of `lib/` (TODO(confirm)) with its quality gate unfinished; the scripts themselves are statically
+checked only (see the root README's [Measurement status](../README.md#measurement-status))
 
 One rank per Spark over the ConnectX-7 fabric. Rank 0 serves the OpenAI-compatible API with TensorFold's own
 `tensorfold serve`; ranks 1-3 follow it. Every reply is token-identical to serial decoding, and RoCE reductions give
@@ -108,13 +111,53 @@ watchdog floor was 2 GiB with any swap growth fatal; it never tripped.
 
 ## Profiles
 
-`PROFILE=` selects `profiles/<name>.env` on every Spark (`serve.sh` forwards it).
+`./glm53 up --profile NAME` (or `PROFILE=NAME` for `serve.sh`) selects `profiles/<name>.env` on every Spark.
+`setup` installs both TensorFold trees, so switching profiles needs only `./glm53 down` and `./glm53 up --profile ...`.
 
 | Profile | Context | KV cache | TensorFold | Status |
 |---|---:|---|---|---|
 | `fast-160k` (default) | 163,840 | bf16, whole on every rank (`TF_GLM53_DCP=1`) | `glm53-tp4-spark` `757a851` | **measured**, numbers above |
+| `int4-262k` | 262,144 | int4 latent, whole on every rank | `glm53-kv-int4` `0c858e3` | speed measured through a copy of `lib/` (TODO(confirm)); quality gate not finished: opt-in (`--allow-unvalidated`) |
 | `dcp4-262k` | 262,144 | bf16, split across ranks (`TF_GLM53_DCP=4`) | `glm53-tp4-spark` `757a851` | measured, below |
-| `int4-262k` | 262,144 | int4 latent, whole on every rank | `glm53-kv-int4` `47c7aa0` | **pending validation**, opt-in (`ALLOW_UNVALIDATED=1`) |
+
+The default is the `DEFAULT_PROFILE=` line in [`env.sh`](env.sh). The default profile is always treated as validated,
+so making `int4-262k` the default once its quality gate passes is that one line.
+
+### `int4-262k`: 262,144 tokens with an int4 KV cache
+
+An int4 MLA latent cache in exllamav3's Q4 cache format (the 512-wide latent in 32-value groups with fp16 scales; RoPE
+dims and indexer keys stay 16-bit): 9.234 GiB a rank at 262,144 tokens, against 23.25 GiB for bf16, which does not
+fit unsplit. The writer is bit-identical to exllamav3's quantizer on all four Sparks (with the approximate reciprocal
+exllamav3's fast-math build uses). int4 changes the numerics, so its greedy ids are not the bf16 ids; drafted replies
+still equal this server's own serial replies, and the pack's quality figures do not carry over.
+
+**TODO(confirm):** measured 2026-10-05 with the same TensorFold tree (`0c858e3`, checked file by file) through a copy
+of `lib/` and the operator's own launcher, not through `./glm53`; record:
+[`bench/records/2026-10-05-serve-262k-int4/`](../bench/records/2026-10-05-serve-262k-int4/README.md).
+
+| Measurement | `int4-262k` | `fast-160k` |
+|---|---:|---:|
+| Decode with DFlash2, mean of 6 prompts | 40.62 tok/s (median of 3) | 41.11 tok/s (one run) |
+| code / prose / math | 38.94 / 33.07 / 57.98 | 40.64 / 35.71 / 56.50 |
+| chat_explain / chat_multiturn / long_doc | 37.66 / 33.39 / 42.71 | 37.67 / 32.57 / 43.54 |
+| Decode without drafting, mean of 6 prompts | 25.31 tok/s | 26.46 tok/s |
+| Drafted == this server's serial | 18 / 18 | 6 / 6 |
+| SixCat decode, C=1, p50 | 68.18 tok/s | 69.19 tok/s |
+| SixCat prefill, ~2,474-token prompt, p50 | 307.9 tok/s | 313.4 tok/s |
+| SixCat TTFT on that prompt, p50 | 8.04 s | 7.90 s |
+| KV cache per rank | 9.234 GiB | |
+| Lowest MemAvailable while serving | 10.18 GiB | 4.86 GiB |
+| Lowest MemAvailable during the first boot | 6.35 GiB (kernel builds + graph capture) | |
+
+Serial decode is ~5% slower than bf16 (int4 decode attention dequantizes and rotates every key: +1.8 ms a token);
+drafted decode lands within 2% of bf16. Quality: teacher-forced against exllamav3 TP=4 with its Q4 cache, the prompt
+path **passed** (160 rows, mean NLL +0.126%, 95% CI −0.017 … +0.264%); the decode path is still being finished, which
+is why the profile needs `--allow-unvalidated`. Not measured: prompts longer than 2,842 tokens at this context.
+
+```bash
+./glm53 up --profile int4-262k --allow-unvalidated     # setup already installed the int4 tree
+./glm53 bench                                          # drafted == this server's serial (BENCH_IDS=self)
+```
 
 ### `dcp4-262k`: 262,144 tokens with decode context parallelism
 
@@ -133,33 +176,20 @@ prompts), and it is slower (prompt chunks are capped at 1,024 rows under DCP). R
 | SixCat TTFT on that prompt, p50 | 10.66 s |
 | Lowest MemAvailable on any rank | 14.79 GiB |
 
-`serve.sh bench` on this profile compares drafted replies with the server's own serial replies (`BENCH_IDS=self`),
-not with the 32K reference.
+`bench` on this profile compares drafted replies with the server's own serial replies (`BENCH_IDS=self`), not with
+the 32K reference.
 
 **bf16 at 262,144 with `TF_GLM53_DCP=1` does not fit.** The cache guard refused on ranks 0 and 1 (21.9 GiB of
 caches needed, 27.6 / 27.8 GiB free with the 6 GiB reserve); on ranks 2 and 3 it passed, MemAvailable fell to
 4.60 / 4.69 GiB, swap grew 4 kB, and the watchdog stopped all four
 ([`bench/records/2026-10-05-serve-262k-dcp1-failed/`](../bench/records/2026-10-05-serve-262k-dcp1-failed/)).
 
-### `int4-262k`: pending validation
-
-An int4 MLA latent cache in exllamav3's Q4 cache format (the 512-wide latent in 32-value groups with fp16 scales;
-RoPE dims and indexer keys stay 16-bit), from the
-[`glm53-kv-int4`](https://github.com/vcruz305/TensorFold/tree/glm53-kv-int4) branch. Validated on CPU only (the
-writer is bit-identical to exllamav3's quantizer; the readers are row-invariant). Predicted, not measured: 9.23 GiB
-of cache per rank at 262,144 tokens. No speed, memory or quality figure exists on a Spark; int4 changes the
-numerics, so its replies are not the bf16 ids and the pack's quality figures do not carry over.
-
-```bash
-PROFILE=int4-262k bash tensorfold-four-spark-tp4/setup.sh                       # on each Spark: second checkout
-PROFILE=int4-262k ALLOW_UNVALIDATED=1 bash tensorfold-four-spark-tp4/serve.sh up
-```
-
 ## Runtime identity
 
 | | |
 |---|---|
-| engine | [ashhart/TensorFold PR #159](https://github.com/ashhart/TensorFold/pull/159) (`drowzeys/TensorFold` `glm-moe-dsa-tp4` @ `689596d`) + 2 commits = [`vcruz305/TensorFold` `glm53-tp4-spark` @ `757a851`](https://github.com/vcruz305/TensorFold/commits/glm53-tp4-spark): per-layer `safe_open` release + `malloc_trim`, per-shard page-cache drop before the cache guard, fail-closed fp16 → bf16 cast. `git diff 689596d 757a851` has sha256 `1555d8ad…`, byte-identical to the measured tree's diff |
+| engine | [ashhart/TensorFold PR #159](https://github.com/ashhart/TensorFold/pull/159) (`drowzeys/TensorFold` `glm-moe-dsa-tp4` @ `689596d`) + 2 commits = [`vcruz305/TensorFold` `glm53-tp4-spark` @ `757a851`](https://github.com/vcruz305/TensorFold/commits/glm53-tp4-spark): per-layer `safe_open` release + `malloc_trim`, per-shard page-cache drop before the cache guard, fail-closed fp16 → bf16 cast. `git -c core.abbrev=7 diff 689596d 757a851` has sha256 `1555d8ad…`, byte-identical to the measured tree's diff |
+| engine, `int4-262k` | [`vcruz305/TensorFold` `glm53-kv-int4` @ `0c858e3`](https://github.com/vcruz305/TensorFold/commits/glm53-kv-int4) = `757a851` + `--kv-dtype int8/int4` for the MLA latent cache + two Triton compile fixes found on the GPU. `git -c core.abbrev=7 diff 689596d 0c858e3` has sha256 `d3866de2…`, the tree that was measured |
 | serving wrappers | `lib/` (applied at import by the launcher; the TensorFold tree is not edited) |
 | reductions | b12x `b58f34e` RoCE one-shot, one rail; `equals the NCCL rank-order sum: True` on all four ranks is enforced |
 | tiles | `tiles/tiles.json`, sha256 `db409731…`, 567 EXL3 linears, loaded instead of tuned at boot |
@@ -178,50 +208,52 @@ knobs; with the default profile the environment and `tensorfold serve` argv are 
 
 **Requirements, on every Spark:** DGX OS / Ubuntu 24.04 (aarch64), CUDA 13 with `nvcc`, `python3` with its headers
 (`libpython3.12-dev`: Triton JIT-compiles against `Python.h`), `gcc` and `libibverbs-dev` (b12x's RDMA proxy),
-~330 GB free disk for the pack, drafter and head, and at least 100 GiB of MemAvailable before a start. The four
-Sparks reach each other over the ConnectX-7 fabric (one RoCE rail), and rank 0 can ssh to ranks 1-3 without a
+`rsync`, ~330 GB free disk for the pack, drafter and head, and at least 100 GiB of MemAvailable before a start. The
+four Sparks reach each other over the ConnectX-7 fabric (one RoCE rail), and rank 0 can ssh to ranks 1-3 without a
 password (its watchdog stops them on a breach). Every rank reads every shard, so **each Spark holds the full pack**.
 
-**1. Each Spark** (same clone path on all four):
+**The driver** (where you type `./glm53`): one of the Sparks or any Linux / macOS machine with `bash` 4 or newer,
+`ssh` and `rsync`, and passwordless ssh to all four. `init` checks both ssh paths and prints the commands that fix them.
 
 ```bash
 git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git && cd GLM-5.3-EXL3-DGX-Spark-recipe
-bash tensorfold-four-spark-tp4/setup.sh         # --check later verifies without changing anything
+./glm53 init --hosts spark-a,spark-b,spark-c,spark-d    # rank 0 first ('local' = this machine)
+HF_TOKEN=hf_... ./glm53 setup --download-once           # all four in parallel; logs in tensorfold-four-spark-tp4/runs/
+./glm53 up                                              # preflight, page cache, watchdogs, ranks 1-3, rank 0, READY
+./glm53 chat "Explain RoCE in two sentences."
 ```
 
-The pack is gated: request access on its Hugging Face page first. Without a token, `setup.sh` stops before the
-downloads and prints the login command (`~/glm53-tensorfold/venv/bin/hf auth login`); run it again afterwards.
+- **`init`** writes `hosts` (rank, ssh target, fabric IP) after reading each Spark's IPv4 address on `FABRIC_IFNAME`
+  (default `enp1s0f0np0`) and the RDMA device behind it, and records both in `cluster.env`. It checks ssh from here to
+  every Spark and from rank 0 to ranks 1-3, and prints the exact commands for what is missing. `--fabric-ips` skips the
+  detection; `--peer-ssh` fills the optional fourth column (how rank 0 reaches a peer, default its fabric IP).
+- **`setup`** copies this clone to every Spark (`rsync`, into the same path below the home directory; `RECIPE_SYNC=git`
+  clones it instead), then runs `setup.sh` on all four in parallel with a log per Spark and a summary that names the
+  fix for every failure. `setup.sh` builds a venv (torch cu130), checks out both pinned TensorFold trees, stages b12x,
+  downloads the pack, drafter and BF16 lm_head, and builds the serve view. Re-running it is safe; downloads resume.
+  - `--download-once`: rank 0 downloads (319 GB) while ranks 1-3 build their runtime; then rank 0 `rsync`s the pack,
+    drafter and lm_head to ranks 1-3 over the fabric (resumable) and they build their views.
+  - `--model-dir /path/to/GLM-5.3-EXL3-3.38bpw`: the pack is already there (on every Spark, or on rank 0 with
+    `--download-once`); it is checked (58 shards, each as long as its safetensors header says) instead of downloaded.
+    The path is kept in `cluster.env` for every later step.
+  - The pack is gated: request access on its Hugging Face page first. `HF_TOKEN=hf_... ./glm53 setup` writes your
+    token (over ssh stdin, never a command line) to the Sparks that download and have none; or run
+    `~/glm53-tensorfold/venv/bin/hf auth login` on them.
+- **`up`** runs `preflight` (recipe commit, idle GPU, MemAvailable, ports, RoCE GID, runtime pin, view shas, launcher dry
+  run on every Spark) and then `serve.sh up`. Ranks 1-3 start first, then rank 0. Each rank loads 78 layers (about
+  400 s), sets up RoCE, loads the pinned tiles and the drafter and captures its decode graphs; rank 0 then runs a
+  16-token serial and a 16-token drafted warm-up and starts HTTP. The first start on a Spark also JIT-builds
+  TensorFold's CUDA kernels.
+- Then `./glm53 smoke` (`/v1` checks), `./glm53 bench` (the 6 reference prompts: ids and tok/s against the tables
+  above), `./glm53 status`, `./glm53 logs` (rank logs, watchdog logs and bench JSON into `runs/<time>/`),
+  `./glm53 tunnel --open` (the API on the driver's `127.0.0.1:8890`), `./glm53 down`. Those steps reuse the profile
+  of the last `up`. `./glm53 check` re-verifies every install; `./glm53 sync` re-copies this clone after a `git pull`.
+- `--dry-run` on any command prints every ssh and rsync command and runs nothing.
 
-Downloading on one Spark and copying `~/models/` to the others over the fabric (`rsync`) also works; then run
-`SKIP_DOWNLOADS=1 bash tensorfold-four-spark-tp4/setup.sh` there.
-
-**2. The hosts file**, where you drive the cluster from:
-
-```bash
-cp tensorfold-four-spark-tp4/hosts.example tensorfold-four-spark-tp4/hosts && $EDITOR tensorfold-four-spark-tp4/hosts
-```
-
-Columns: rank, ssh target (or `local`), fabric IP, and optionally how rank 0 reaches that rank over ssh. `serve.sh`
-hands the table to every Spark it calls, so the Sparks need no copy (running `rank.sh` by hand on a Spark does).
-
-**3. Serve:**
-
-```bash
-bash tensorfold-four-spark-tp4/serve.sh preflight   # "preflight OK on all four"
-bash tensorfold-four-spark-tp4/serve.sh up          # page cache, watchdogs, ranks 1-3, rank 0, waits for READY
-bash tensorfold-four-spark-tp4/serve.sh smoke       # /v1 checks on rank 0
-bash tensorfold-four-spark-tp4/serve.sh bench       # the 6 reference prompts: ids and tok/s vs the tables above
-bash tensorfold-four-spark-tp4/chat.sh "Explain RoCE in two sentences."   # on rank 0, or through serve.sh tunnel
-bash tensorfold-four-spark-tp4/serve.sh down
-```
-
-`DRY_RUN=1` before any `serve.sh` step prints every ssh command and runs nothing. `serve.sh logs` copies the rank
-logs, watchdog logs and bench JSON into `tensorfold-four-spark-tp4/runs/<time>/`.
-
-Start order and timing: ranks 1-3 start first, then rank 0. Each rank loads 78 layers (about 400 s), sets up RoCE,
-loads the pinned tiles and the drafter and captures 96 decode graphs; rank 0 then runs a 16-token serial and a
-16-token drafted warm-up and starts HTTP. `up` returns when rank 0 logs `[tensorfold] serving ... /v1`. The first
-start on a Spark also JIT-builds TensorFold's CUDA kernels.
+**Without the launcher**, the same thing by hand: `bash tensorfold-four-spark-tp4/setup.sh` on each Spark (same clone
+path on all four), `cp hosts.example hosts` and edit it on the driver, then `serve.sh preflight`, `serve.sh up`,
+`serve.sh smoke` / `bench`, `chat.sh` on rank 0, `serve.sh down`. `DRY_RUN=1` before any `serve.sh` step prints its
+commands.
 
 ## Requests
 
@@ -242,14 +274,16 @@ start on a Spark also JIT-builds TensorFold's CUDA kernels.
 
 | File | Role |
 |---|---|
-| `env.sh` | every pin (TensorFold, b12x, pack, drafter, head, shas), path and knob; `verify_runtime`, `verify_view`, the hosts-file reader |
-| `profiles/*.env` | `fast-160k` (default), `dcp4-262k`, `int4-262k` (pending) |
-| `setup.sh` | per Spark: venv + torch cu130, the pinned TensorFold checkout, b12x stage, downloads, serve view, checks |
+| `../glm53` → `run.sh` | the launcher: `init` / `setup` / `sync` / `check` on all four from one machine, then every `serve.sh` step, `chat`, `tunnel`; `--dry-run` |
+| `env.sh` | every pin (TensorFold trees, b12x, pack, drafter, head, shas), `DEFAULT_PROFILE`, paths and knobs; `verify_runtime`, `verify_view`, `check_pack`, the hosts-file reader |
+| `profiles/*.env` | `fast-160k` (default), `int4-262k` (opt-in), `dcp4-262k` |
+| `setup.sh` | per Spark: venv + torch cu130, both pinned TensorFold checkouts, b12x stage, downloads, serve view, checks (`--check`, `--runtime-only`) |
 | `serve.sh` | driver: preflight / up / status / smoke / bench / down / logs / tunnel over ssh, `DRY_RUN=1` |
 | `rank.sh` | one Spark, one rank: preflight, fadvise, watch, start, state, stop, unwatch, status, smoke, bench |
 | `chat.sh` | one streamed chat request and the engine's stats for it |
 | `drop-model-cache.sh` | `posix_fadvise(DONTNEED)` of the model files (GB10 counts page cache as used) |
-| `hosts.example` | the four Sparks: rank, ssh target, fabric IP |
+| `hosts.example` | the four Sparks: rank, ssh target, fabric IP (`./glm53 init` writes `hosts`) |
+| `cluster.env` (git-ignored) | per-cluster settings `./glm53 init` / `setup` record (`FABRIC_IFNAME`, `ROCE_HCA`, `MODEL_DIR`); `run.sh` and `serve.sh` forward them to every Spark |
 | `lib/tf_serve_rank.py` | the launcher: environment before imports, refusals, the wrappers, then `tensorfold.cli.main(["serve", ...])` |
 | `lib/tf_serve_patches.py` | serving wrappers: DFlash2 default, startup + per-request rank consensus, fatal exit on a failed round, warm-up |
 | `lib/tf_speed_patches.py`, `lib/tf_speed_common.py` | the speed sweep's wrappers: tile pinning, the RoCE rank-order hard stop, the per-round health guard and consensus |
@@ -257,6 +291,7 @@ start on a Spark also JIT-builds TensorFold's CUDA kernels.
 | `tiles/tiles.json` | the pinned tile table |
 | `tools/make_view.sh`, `tools/fix_chat_template.py`, `tools/fetch_lm_head.py` | the serve view: pack symlinks + BF16 lm_head + fixed template |
 | `tools/b12x_env.sh` | the RoCE environment (stage path, HCA, spin limit, per-host GID) |
+| `tools/check_pack.py` | pack completeness without hashing: 58 shards, each exactly as long as its safetensors header says |
 
 ## What the scripts add over PR #159
 
@@ -313,8 +348,8 @@ leave ranks 1-3 at 2.0-4.2 GiB, and swap already grew at 4.6 GiB in the 262K att
 
 ## Changing the configuration
 
-Export the variable before `serve.sh`; it forwards every `env.sh` variable you set to all four Sparks and prints the
-resolved profile on start. Values marked `(measured)` in `env.sh` are the measured configuration: change one only to
+Export the variable before `./glm53` (or `serve.sh`); it forwards every `env.sh` variable you set, plus `cluster.env`,
+to all four Sparks and prints the resolved profile on start. Values marked `(measured)` in `env.sh` are the measured configuration: change one only to
 measure a new configuration, and label the numbers as new.
 
 - `TFS_ROCE=0`: NCCL reductions (sweep: 37.07 vs 41.42 tok/s).
@@ -329,33 +364,45 @@ measure a new configuration, and label the numbers as new.
 
 ## Not measured yet
 
-- **This repo's scripts end to end** on fresh Sparks: `setup.sh` from scratch (venv, TensorFold checkout, b12x stage,
-  downloads, view), then `serve.sh up`, `smoke`, `bench`. Every number above came from the predecessor stack.
+- **This repo's scripts end to end** on fresh Sparks: `./glm53 init`, `setup` (venv, TensorFold checkouts, b12x stage,
+  downloads or the `--download-once` copy, view), `up`, `smoke`, `bench`. Every number above came from the predecessor
+  stack; the launcher has run only with ssh and rsync replaced by stand-ins.
 - **Sampled requests.** Everything was greedy; the speed-up at temperature > 0 is unmeasured.
 - **The thinking-on stress sequence** (long prompts with tool calls, streamed channels) has not been run.
 - **HTTP overhead, directly.** Streaming does per-token work on rank 0 inside the decode round. The 6-prompt mean
   through `/v1` (41.11, one run per prompt) is 0.75% below the in-process sweep's (41.42, median of 3).
 - **DFlash2 at 162.5K**: the run was stopped before the drafted arm.
-- **Quality on the pinned tile table** (the G2 gate was started and stopped), and anything about `int4-262k`.
+- **Quality on the pinned tile table** (the bf16 G2 gate was scored on its recorded arms: inconclusive by 0.007
+  points on the prompt path), and the decode half of `int4-262k`'s gate. `int4-262k` at prompts longer than 2,842
+  tokens.
 - `vm.compaction_proactiveness` is 20 on the measured Sparks; PR #159's own recipe uses 0. No stalls were seen.
 
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| `no hosts file at ...` | `cp hosts.example hosts` and fill in the four Sparks |
-| `recipe clone at <sha>, here <sha>` | `git pull` on every Spark: the four ranks must run the same `lib/` |
-| `TensorFold at ... is <sha>, the recipe pins ...` | `setup.sh` on that Spark (with the same `PROFILE` for int4) |
+| `no hosts file yet` / `no hosts file at ...` | `./glm53 init --hosts H0,H1,H2,H3` (or `cp hosts.example hosts` and fill it in) |
+| `init`: `ssh to <host> failed` / `rank 0 -> rank N: FAILED` | run the `To fix:` lines it prints (`ssh-copy-id`, rank 0's key into the peer's `authorized_keys`, `StrictHostKeyChecking=accept-new` once), then `init ... --force` |
+| `init`: `no IPv4 address on FABRIC_IFNAME=...` | `FABRIC_IFNAME=<the ConnectX-7 port with the fabric address> ./glm53 init ... --force` (it lists each Spark's addresses), or `--fabric-ips` |
+| `setup`: `FAIL rank N ...` | the summary prints the fix; the full log is `runs/setup-<time>/setup-rankN.log`; re-run `./glm53 setup` (finished steps are kept) |
+| `no Hugging Face token` | request access to the pack, then `HF_TOKEN=hf_... ./glm53 setup` (or `hf auth login` on that Spark) |
+| `the pack at ... is incomplete` / `truncated` | `./glm53 setup` (downloads resume; `--download-once` copies resume) |
+| `rsync not found` | `sudo apt install -y rsync` there (or `RECIPE_SYNC=git` for the recipe copy) |
+| `recipe clone at <sha>, here <sha>` | `./glm53 sync` (or `git pull` on every Spark): the four ranks must run the same `lib/` |
+| `TensorFold at ... is <sha>, the recipe pins ...` / `no TensorFold checkout at ...TensorFold-0c858e3402ad` | `./glm53 setup` (installs both trees; `--no-int4` skipped the second) |
 | `lacks the measured loader fixes` | a TensorFold tree without the `glm53-tp4-spark` commits; `setup.sh` |
-| `no Python.h under ...` | `apt install libpython3.12-dev` (or the matching version), then `setup.sh` |
-| `b12x tarball sha256 ... !=` | GitHub served a different archive for `b58f34e`; inspect it, then `B12X_TARBALL_SHA=<sha>` to accept |
-| `REFUSE: NCCL_IB_HCA='=rocep1s0f0'` | start through `serve.sh` / `rank.sh`, never by hand: `tools/b12x_env.sh` strips the `=` |
-| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA` |
+| `no Python.h under ...` | `sudo apt install -y libpython3.12-dev` (or the matching version), then `./glm53 setup` |
+| `b12x builds a small RDMA proxy with gcc + libibverbs` | `sudo apt install -y gcc libibverbs-dev`, then `./glm53 setup` (or `TFS_ROCE=0` for NCCL) |
+| `b12x tarball sha256 ... !=` | GitHub served a different archive for `b58f34e`; inspect it, then `B12X_TARBALL_SHA=<sha> ./glm53 setup` to accept |
+| `REFUSE: NCCL_IB_HCA='=rocep1s0f0'` | start through `./glm53` / `serve.sh` / `rank.sh`, never by hand: `tools/b12x_env.sh` strips the `=` |
+| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` re-detects both |
 | `decode-window reductions: NCCL` then `FATAL ... RoCE requested` | b12x stage or GID problem; `rank.sh preflight --rank R` prints the resolved GID |
-| `context ... x 1 streams needs ... is free` | page cache or another job's memory: `serve.sh fadvise`, check `preflight`; never lower `TF_GLM53_CACHE_RESERVE_GB` |
-| `REFUSE: no watchdog` / `watchdog flagged` | `serve.sh up` starts the watchdogs; after a trip read `/tmp/tf_serve_memwatch.VIOLATION`, then `serve.sh down` |
-| `PROFILE=int4-262k is pending validation` | intended: set `ALLOW_UNVALIDATED=1` only to validate it |
+| `context ... x 1 streams needs ... is free` / `LOW MEMORY` | page cache or another job's memory: `./glm53 fadvise`, check `preflight`; never lower `TF_GLM53_CACHE_RESERVE_GB` |
+| `GPU BUSY` / `a server rank already runs` / `PORT ... in use` | another job or this server: `./glm53 status`, `./glm53 down`, or stop the other job |
+| `REFUSE: no watchdog` / `watchdog flagged` | `./glm53 up` starts the watchdogs; after a trip `./glm53 logs`, read `/tmp/tf_serve_memwatch.VIOLATION`, then `./glm53 down` |
+| `START FAILED` / `TIMEOUT` during `up` | `./glm53 logs` (rank logs: `[tf_serve] FATAL ...`), `./glm53 down`, `./glm53 preflight` before the next `up` |
+| `profile int4-262k is not validated yet` | intended until its quality gate passes: `--allow-unvalidated` (`ALLOW_UNVALIDATED=1`) to run it anyway |
 | first request slow | the warm-up runs before HTTP starts; the first long prompt can still build prompt kernels once |
 | client gets `reasoning_content` only, `finish_reason: length` | the reply spent `max_tokens` thinking: raise it or send thinking off |
 | decode far below the tables | the reply's `tensorfold` block must show `mtp_mode` `dflash`, `depth` 7, `confidence` 0.6; rank 0's log must show `decode-window reductions: RoCE one-shot`; nothing else on the GPUs |
-| `bench` fails on ids with `PROFILE=dcp4-262k` | expected against the 32K reference; the profile sets `BENCH_IDS=self` (drafted vs this server's serial) |
+| `bench` fails on ids with `dcp4-262k` or `int4-262k` | expected against the 32K reference; those profiles set `BENCH_IDS=self` (drafted vs this server's serial), and `./glm53 bench` reuses the profile of the last `up` |

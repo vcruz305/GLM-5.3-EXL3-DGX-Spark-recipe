@@ -3,7 +3,8 @@
 The files behind every number in the READMEs, from 2026-10-05 on four DGX Sparks (GB10). They were produced by the
 stack `tensorfold-four-spark-tp4/` packages (same TensorFold tree, same `lib/` wrappers, pinned tiles, b12x, drafter,
 BF16 lm_head and chat template), before this repo existed; see the root README's
-[Measurement status](../../README.md#measurement-status).
+[Measurement status](../../README.md#measurement-status). The int4 record is one step further removed (a copy of
+`lib/` with its own launcher), so its figures are TODO(confirm) everywhere they are quoted.
 
 Copied as produced, with three edits: line endings are LF; operator paths are rewritten to `/workspace/...`
 (`/workspace/view` is the serve view, `/workspace/TensorFold` the checkout, `/workspace/b12x` the b12x stage); and host
@@ -17,6 +18,7 @@ Files marked *derived* are smaller extracts of a larger raw file; their header s
 | [`2026-10-05-serve-262k-dcp1-failed/`](2026-10-05-serve-262k-dcp1-failed/) | 262,144 tokens with `TF_GLM53_DCP=1`: cache guard refusals on ranks 0/1, swap growth and watchdog trip on ranks 2/3 | the same server; rank logs and watchdog flags |
 | [`2026-10-05-serve-262k-dcp4/`](2026-10-05-serve-262k-dcp4/) | 262,144 tokens with `TF_GLM53_DCP=4` (`PROFILE=dcp4-262k`): the 6 prompts (`sweep6.json`), `bench_v1.py` against the 32K reference (fails on ids by design: another numeric path), SixCat, smoke, memory | the same server |
 | [`2026-10-05-serve-160k/`](2026-10-05-serve-160k/) | 163,840 tokens with `TF_GLM53_DCP=1` (`PROFILE=fast-160k`, the default): the 6 prompts (`sweep6.json`), the 128K and 162.5K book prompts, SixCat, rank logs, memory | the same server; `bench/longctx_run.py` |
+| [`2026-10-05-serve-262k-int4/`](2026-10-05-serve-262k-int4/README.md) | 262,144 tokens with an int4 latent KV cache (`PROFILE=int4-262k`): the 6 prompts (1 serial + 3 drafted each), smoke, SixCat, rank logs, memory, per-host kernel parity | **TODO(confirm)**: the same TensorFold tree (`glm53-kv-int4` @ `0c858e3`) through a *copy* of `lib/` and the operator's own launcher, not this repo's entry scripts; see its README |
 | [`2026-10-05-quality-g1/`](2026-10-05-quality-g1/REPORT_RESULTS.md) | teacher-forced quality gate G1: TensorFold vs exllamav3 TP=4 on 43,903 prompt and 2,424 decode positions | gate harness; NCCL, context 4096, no drafting, that boot's tile picks (`tile_picks_tf.txt`), not the pinned table |
 
 Notes per record:

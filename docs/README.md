@@ -26,4 +26,6 @@ python docs/render_benchmark.py          # benchmark-renders/benchmark.png; fail
 - Decode rates are the engine's own (tokens after the first over decode time), greedy, 512 new tokens.
 - The 6-prompt and long-prompt rows ran through the `/v1` server; the sweep rows ran in-process (no HTTP).
 - SixCat decode is a synthetic, highly draftable workload: a ceiling, not the speed a user sees.
-- `int4-262k` is pending validation and has no figures.
+- The `int4-262k` row is TODO(confirm): measured with the same TensorFold tree through a copy of `lib/`, not this
+  repo's entry scripts, and its quality gate is not finished. Its MemAvailable figure is the first boot's minimum
+  (kernel builds); 10.18 GiB while serving.

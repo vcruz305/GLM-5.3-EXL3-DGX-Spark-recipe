@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Serve GLM-5.3 (EXL3 3.38 bpw) on four DGX Sparks: TensorFold TP=4, one rank per Spark, an OpenAI-compatible /v1 API
-# on rank 0 (http://127.0.0.1:8890/v1 there, model id GLM-5.3-EXL3-3.38bpw). This is the recommended way to run it.
-# Run it where the hosts file is (a Spark or any machine with ssh to all four); every host-side action is rank.sh on
-# that Spark, in the same recipe clone (REMOTE_REPO, default: this clone's path).
+# on rank 0 (http://127.0.0.1:8890/v1 there, model id GLM-5.3-EXL3-3.38bpw). ./glm53 (run.sh) calls this for every
+# serving step; it can be used directly too. Run it where the hosts file is (a Spark or any machine with ssh to all
+# four); every host-side action is rank.sh on that Spark, in the recipe clone at REMOTE_REPO (default: this clone's
+# path; a leading ~/ is the remote home).
 #
 #   bash tensorfold-four-spark-tp4/serve.sh preflight   every Spark: same recipe commit, GPU idle, MemAvailable, ports,
 #                                                       RoCE GID, runtime pin, view shas, launcher dry run
@@ -15,13 +16,25 @@
 #
 # PROFILE=fast-160k   (default) --context 163840, bf16 KV cache whole on every rank: the measured fast path
 # PROFILE=dcp4-262k   --context 262144 with decode context parallelism (measured: slower, other bits)
-# PROFILE=int4-262k   --context 262144 with an int4 latent cache: PENDING VALIDATION, needs ALLOW_UNVALIDATED=1
+# PROFILE=int4-262k   --context 262144 with an int4 latent cache: NOT VALIDATED yet, needs ALLOW_UNVALIDATED=1
 # DRY_RUN=1           print every ssh command instead of running it (no ssh at all)
-# Any variable from env.sh that you set here (TFS_MIN_AVAIL_GIB, TFS_HTTP_PORT, ...) is forwarded to all four Sparks.
+# Any variable from env.sh that you set here (TFS_MIN_AVAIL_GIB, TFS_HTTP_PORT, ...) is forwarded to all four Sparks,
+# and so is every KEY=value in cluster.env (written by ./glm53 init / setup) that you did not set yourself.
 set -uo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# cluster.env (git-ignored; ./glm53 init / setup write it): per-cluster settings such as MODEL_DIR or FABRIC_IFNAME.
+# Loaded before the forward list is captured, so its values reach every Spark; an exported variable wins.
+if [[ -f "$HERE/cluster.env" ]]; then
+  while IFS= read -r _l || [[ -n "$_l" ]]; do
+    [[ "$_l" =~ ^([A-Z_][A-Z0-9_]*)= ]] || continue
+    [[ -n "${!BASH_REMATCH[1]+x}" ]] || eval "export $_l"
+  done < "$HERE/cluster.env"
+  unset _l
+fi
+
 # Captured before env.sh fills in defaults: only what you set yourself is forwarded.
-FORWARD_VARS="PROFILE ALLOW_UNVALIDATED RECIPE_HOME VENV TF_REF TF_SRC_DIR B12X_STAGE STATE_DIR MODEL_ROOT PACK_DIR
+FORWARD_VARS="PROFILE ALLOW_UNVALIDATED RECIPE_HOME VENV TF_REF TF_SRC_DIR B12X_STAGE STATE_DIR MODEL_ROOT MODEL_DIR PACK_DIR
 DRAFTER_DIR HEAD_DIR VIEW_DIR TILES CUDA_HOME FABRIC_IFNAME ROCE_HCA TFS_ROCE TFS_CONTEXT TF_GLM53_DCP
 TF_GLM53_CACHE_RESERVE_GB TFS_KV_DTYPE TFS_PROMPT_ROWS TFS_VERIFY_ROWS TFS_DFLASH_DEPTH TFS_DFLASH_CONFIDENCE
 TFS_DRAFT_DEFAULT TFS_HEALTH TFS_WARMUP TFS_THINKING TFS_MAX_TOKENS TFS_NAME TFS_ALIAS TFS_HTTP_HOST TFS_HTTP_PORT
@@ -39,7 +52,6 @@ else
   export SERVE_FWD="$FWD"
 fi
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=env.sh
 source "$HERE/env.sh"
 STEP="${1:-}"
@@ -50,12 +62,16 @@ SSH=(ssh -o BatchMode=yes -o ConnectTimeout=20)
 [[ -n "${SSH_CONFIG:-}" ]] && SSH+=(-F "$SSH_CONFIG")
 TP4_REL="tensorfold-four-spark-tp4"
 
+qdir() {                                         # quote a directory for a remote shell; a leading ~/ stays the home
+  if [[ "$1" == "~/"* ]]; then printf '~/%q' "${1#\~/}"; else printf %q "$1"; fi
+}
+TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 rcmd() {                                         # rcmd RANK CMD: run CMD in the recipe clone on that rank's Spark
   local r=$1; shift
-  local cmd; cmd="cd $(printf %q "$REMOTE_REPO") && env$FWD HOSTS_INLINE=$(printf %q "$HOSTS_INLINE") $*"
-  local to=(); [[ -n "${RCMD_TIMEOUT:-}" ]] && to=(timeout "$RCMD_TIMEOUT")
+  local cmd; cmd="cd $(qdir "$REMOTE_REPO") && env$FWD HOSTS_INLINE=$(printf %q "$HOSTS_INLINE") $*"
+  local to=(); [[ -n "${RCMD_TIMEOUT:-}" && -n "$TIMEOUT_BIN" ]] && to=("$TIMEOUT_BIN" "$RCMD_TIMEOUT")
   if [[ "$DRY" == 1 ]]; then echo "DRY [rank $r]: ${H_SSH[$r]}: $cmd"; return 0; fi
-  if [[ "${H_SSH[$r]}" == local ]]; then "${to[@]}" bash -c "$cmd"; else "${to[@]}" "${SSH[@]}" "${H_SSH[$r]}" "$cmd"; fi
+  if [[ "${H_SSH[$r]}" == local ]]; then ${to[@]+"${to[@]}"} bash -c "$cmd"; else ${to[@]+"${to[@]}"} "${SSH[@]}" "${H_SSH[$r]}" "$cmd"; fi
 }
 rank_step() { rcmd "$1" "bash $TP4_REL/rank.sh $2 --rank $1"; }
 
@@ -63,7 +79,7 @@ banner() {
   echo "==> profile $PROFILE: context $TFS_CONTEXT, TF_GLM53_DCP $TF_GLM53_DCP, KV $TFS_KV_DTYPE, TensorFold ${TF_REF:0:12}," \
        "DFlash2 d$TFS_DFLASH_DEPTH/c$TFS_DFLASH_CONFIDENCE, RoCE $TFS_ROCE, watchdog floor $TFS_MIN_AVAIL_GIB GiB" \
        "+ swap growth <= $TFS_MAX_SWAP_GROWTH_KB kB" >&2
-  if [[ "${PROFILE_VALIDATED:-1}" != 1 ]]; then echo "==> PENDING VALIDATION: nothing about this profile has been measured" >&2; fi
+  if [[ "${PROFILE_VALIDATED:-1}" != 1 ]]; then echo "==> NOT VALIDATED: ${PROFILE_NOTE:-nothing about this profile has been measured}" >&2; fi
 }
 
 wait_ready() {
@@ -89,7 +105,7 @@ preflight)
   for r in 0 1 2 3; do
     if [[ "$DRY" == 0 ]]; then
       rev="$(rcmd "$r" "git rev-parse HEAD" 2>/dev/null | tail -n 1)"
-      [[ "$rev" == "$mine" ]] || { echo "rank $r (${H_SSH[$r]}): recipe clone at ${rev:-?}, here ${mine:-?}: git pull on every Spark"; ok=0; }
+      [[ "$rev" == "$mine" ]] || { echo "rank $r (${H_SSH[$r]}): recipe clone at ${rev:-?}, here ${mine:-?}: ./glm53 sync (or git pull on every Spark)"; ok=0; }
     fi
     rank_step "$r" preflight || ok=0
   done
@@ -135,5 +151,5 @@ tunnel)
   [[ "${H_SSH[0]}" == local ]] && { echo "rank 0 is this machine: http://127.0.0.1:$TFS_HTTP_PORT/v1"; exit 0; }
   echo "${SSH[*]} -N -L $TFS_HTTP_PORT:127.0.0.1:$TFS_HTTP_PORT ${H_SSH[0]}    # then http://127.0.0.1:$TFS_HTTP_PORT/v1 here" ;;
 *)
-  sed -n 2,20p "$0"; exit 2 ;;
+  sed -n 2,23p "$0"; exit 2 ;;
 esac

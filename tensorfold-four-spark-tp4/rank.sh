@@ -12,6 +12,7 @@
 #   rank.sh status     --rank R               rank process, watchdog line, last log lines, /health on rank 0
 #   rank.sh smoke|bench --rank 0              bench/bench_v1.py against rank 0's /v1 (results under $STATE_DIR/logs)
 #   rank.sh logs-tar   --rank R               tar of this Spark's rank log, watchdog log and bench JSON to stdout
+#   rank.sh paths      --rank R               PACK_DIR, DRAFTER_DIR, HEAD_DIR as this Spark resolves them (./glm53 setup)
 # --dry-run prints every command instead of running it (start --dry-run also runs the launcher's own --dry-run, which
 # reads files only: no GPU, nothing started or killed).
 set -uo pipefail
@@ -27,7 +28,7 @@ done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=env.sh
 source "$HERE/env.sh"
-[[ "$RANK" =~ ^[0-3]$ ]] || { sed -n 2,16p "$0"; exit 2; }
+[[ "$RANK" =~ ^[0-3]$ ]] || { sed -n 2,17p "$0"; exit 2; }
 read_hosts
 MYIP="${H_IP[$RANK]}"
 LOG="$TFS_LOGS/rank$RANK.log"
@@ -67,14 +68,14 @@ preflight)
   [[ -z "$apps" ]] || { note "GPU BUSY: $apps"; ok=0; }
   avail="$(awk '/MemAvailable/ {print int($2/1048576)}' /proc/meminfo)"
   swap="$(awk '/SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print int((t-f)/1024)}' /proc/meminfo)"
-  [[ "$avail" -ge "$TFS_MIN_START_GIB" ]] || { note "LOW MEMORY: MemAvailable $avail GiB < $TFS_MIN_START_GIB (bash drop-model-cache.sh; stop other jobs)"; ok=0; }
+  [[ "$avail" -ge "$TFS_MIN_START_GIB" ]] || { note "LOW MEMORY: MemAvailable $avail GiB < $TFS_MIN_START_GIB (./glm53 fadvise, or bash drop-model-cache.sh here; stop other jobs)"; ok=0; }
   if [[ "$RANK" == 0 ]]; then
     for p in "$TFS_MASTER_PORT" $((TFS_MASTER_PORT + 11)) "$TFS_HTTP_PORT"; do
       port_free "$p" || { note "PORT $p in use: $(ss -ltnpH "( sport = :$p )" 2>/dev/null | head -1)"; ok=0; }
     done
     for peer in $TFS_PEERS; do         # the central watchdog must be able to stop the peers
       timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=5 "$peer" true 2>/dev/null \
-        || { note "rank 0 cannot 'ssh -o BatchMode=yes $peer' (the watchdog stops all four through it; hosts file peer_ssh)"; ok=0; }
+        || { note "rank 0 cannot 'ssh -o BatchMode=yes $peer' (the watchdog stops all four through it): ./glm53 init --hosts ... prints the fix (or set the hosts file's peer_ssh column)"; ok=0; }
     done
   fi
   ( roce_env && note "RoCE env: HCA=$NCCL_IB_HCA GID=$B12X_ROCE_GID_INDEX SPIN=$B12X_ROCE_SPIN_LIMIT SOCKET=$NCCL_SOCKET_IFNAME fabric $MYIP" ) || ok=0
@@ -161,6 +162,8 @@ smoke|bench)
   args+=(${BENCH_ARGS:-})
   if [[ "$DRY" == 1 ]]; then echo "DRY: python3 $RECIPE_ROOT/bench/bench_v1.py ${args[*]}"; exit 0; fi
   python3 "$RECIPE_ROOT/bench/bench_v1.py" "${args[@]}" ;;
+paths)
+  printf '%s\n' "$PACK_DIR" "$DRAFTER_DIR" "$HEAD_DIR" ;;
 logs-tar)
   files=()
   for f in "$LOG" /tmp/tf_serve_memwatch.log /tmp/tf_serve_memwatch.VIOLATION "$TFS_LOGS"/smoke_*.json "$TFS_LOGS"/bench_*.json; do
@@ -168,5 +171,5 @@ logs-tar)
   done
   [[ ${#files[@]} -gt 0 ]] && tar -czf - "${files[@]}" 2>/dev/null ;;
 *)
-  sed -n 2,16p "$0"; exit 2 ;;
+  sed -n 2,17p "$0"; exit 2 ;;
 esac

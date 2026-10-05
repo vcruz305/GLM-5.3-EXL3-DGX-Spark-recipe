@@ -1,0 +1,44 @@
+[PASS] warm-up request
+[PASS] code: prompt ids == sweep - first diff None
+[PASS] code: serial reply - n 512, tok/s 25.54
+[PASS] code rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 38.78, tokens/round 3.006, mode dflash d7 c0.6
+[PASS] code rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 38.94, tokens/round 3.006, mode dflash d7 c0.6
+[PASS] code rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 39.26, tokens/round 3.006, mode dflash d7 c0.6
+[PASS] prose: prompt ids == sweep - first diff None
+[PASS] prose: serial reply - n 512, tok/s 25.65
+[PASS] prose rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 33.5, tokens/round 2.261, mode dflash d7 c0.6
+[PASS] prose rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 32.93, tokens/round 2.261, mode dflash d7 c0.6
+[PASS] prose rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 33.07, tokens/round 2.261, mode dflash d7 c0.6
+[PASS] math: prompt ids == sweep - first diff None
+[PASS] math: serial reply - n 512, tok/s 25.57
+[PASS] math rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 57.79, tokens/round 6.012, mode dflash d7 c0.6
+[PASS] math rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 57.98, tokens/round 6.012, mode dflash d7 c0.6
+[PASS] math rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 58.29, tokens/round 6.012, mode dflash d7 c0.6
+[PASS] chat_explain: prompt ids == sweep - first diff None
+[PASS] chat_explain: serial reply - n 512, tok/s 25.66
+[PASS] chat_explain rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 37.62, tokens/round 2.762, mode dflash d7 c0.6
+[PASS] chat_explain rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 37.85, tokens/round 2.762, mode dflash d7 c0.6
+[PASS] chat_explain rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 37.66, tokens/round 2.762, mode dflash d7 c0.6
+[PASS] chat_multiturn: prompt ids == sweep - first diff None
+[PASS] chat_multiturn: serial reply - n 512, tok/s 25.34
+[PASS] chat_multiturn rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 33.42, tokens/round 2.222, mode dflash d7 c0.6
+[PASS] chat_multiturn rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 33.18, tokens/round 2.222, mode dflash d7 c0.6
+[PASS] chat_multiturn rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 33.39, tokens/round 2.222, mode dflash d7 c0.6
+[PASS] long_doc: prompt ids == sweep - first diff None
+[PASS] long_doc: serial reply - n 512, tok/s 24.07
+[PASS] long_doc rep 0: drafted ids == this server's serial ids - n 512, first diff None, tok/s 42.66, tokens/round 3.624, mode dflash d7 c0.6
+[PASS] long_doc rep 1: drafted ids == this server's serial ids - n 512, first diff None, tok/s 42.76, tokens/round 3.624, mode dflash d7 c0.6
+[PASS] long_doc rep 2: drafted ids == this server's serial ids - n 512, first diff None, tok/s 42.71, tokens/round 3.624, mode dflash d7 c0.6
+
+| prompt | serial n | ids vs bf16 sweep (first diff) | drafted == serial | server tok/s | client tok/s | tokens/round | bf16 32K sweep A | ratio | serial tok/s |
+|---|---|---|---|---|---|---|---|---|---|
+| code | 512 | 32 | yes | 38.94 | 38.94 | 3.01 | 40.62 | 0.959 | 25.54 |
+| prose | 512 | 35 | yes | 33.07 | 33.07 | 2.26 | 35.58 | 0.929 | 25.65 |
+| math | 512 | 24 | yes | 57.98 | 57.98 | 6.01 | 57.39 | 1.010 | 25.57 |
+| chat_explain | 512 | 119 | yes | 37.66 | 37.66 | 2.76 | 38.69 | 0.973 | 25.66 |
+| chat_multiturn | 512 | 45 | yes | 33.39 | 33.39 | 2.22 | 32.83 | 1.017 | 25.34 |
+| long_doc | 512 | 12 | yes | 42.71 | 42.71 | 3.62 | 43.44 | 0.983 | 24.07 |
+
+mean over 6 prompts: 40.62 tok/s vs bf16 32K sweep A 41.42 / C 41.24
+
+ALL CHECKS PASS (0 failed of 31)

@@ -1,13 +1,14 @@
-# Shared settings for GLM-5.3 on four DGX Sparks with TensorFold (TP=4). Sourced by setup.sh, serve.sh, rank.sh,
-# chat.sh and drop-model-cache.sh. Every value can be overridden from the environment before calling those scripts;
-# serve.sh forwards the ones you set to every Spark (FORWARD_VARS in serve.sh).
+# Shared settings for GLM-5.3 on four DGX Sparks with TensorFold (TP=4). Sourced by run.sh (./glm53), setup.sh,
+# serve.sh, rank.sh, chat.sh and drop-model-cache.sh. Every value can be overridden from the environment before calling
+# those scripts; run.sh and serve.sh forward the ones you set to every Spark (FORWARD_VARS in run.sh / serve.sh).
 #
 # PROFILE picks profiles/<name>.env first. Its values win over the defaults below; an exported variable wins over both.
 #   fast-160k  (default)  --context 163840, whole bf16 KV cache on every rank (TF_GLM53_DCP=1). The measured fast path.
 #   dcp4-262k             --context 262144 with decode context parallelism (TF_GLM53_DCP=4). Measured; slower, and
 #                         another numeric path (its greedy ids differ from fast-160k's).
-#   int4-262k             --context 262144, int4 latent KV cache, unsplit. PENDING VALIDATION: opt-in only
-#                         (ALLOW_UNVALIDATED=1), needs the glm53-kv-int4 TensorFold branch (setup.sh builds it).
+#   int4-262k             --context 262144, int4 latent KV cache, whole on every rank, on the glm53-kv-int4 TensorFold
+#                         branch (setup.sh installs it next to the default tree). Speed measured outside these scripts;
+#                         its quality gate is not finished: opt-in only (ALLOW_UNVALIDATED=1 / --allow-unvalidated).
 
 RECIPE_TP4_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RECIPE_ROOT="$(dirname "$RECIPE_TP4_DIR")"
@@ -15,19 +16,26 @@ RECIPE_ROOT="$(dirname "$RECIPE_TP4_DIR")"
 die() { echo "error: $*" >&2; exit 1; }
 say() { echo "==> $*" >&2; }
 
-PROFILE="${PROFILE:-fast-160k}"
-[[ -f "$RECIPE_TP4_DIR/profiles/$PROFILE.env" ]] \
-  || die "PROFILE=$PROFILE: no profiles/$PROFILE.env (choose fast-160k, dcp4-262k or int4-262k)"
-# shellcheck source=profiles/fast-160k.env
-source "$RECIPE_TP4_DIR/profiles/$PROFILE.env"
-
 # ---- the runtime: TensorFold PR #159 + the measured loader fixes (vcruz305/TensorFold) ------------------------------
 TF_REPO="${TF_REPO:-https://github.com/vcruz305/TensorFold.git}"
 TF_BASE=689596d723115dc99d3c543e88847ebb93d00565         # drowzeys/TensorFold glm-moe-dsa-tp4 = ashhart/TensorFold#159
 TF_MEASURED_REF=757a851a0ce72d5d0051f2cae6d9bc96e4a85a67  # vcruz305/TensorFold glm53-tp4-spark: the tree that was measured
 TF_MEASURED_DIFF_SHA=1555d8ad577dccf99db990c90f9427b001ecdce91da05e23fcde01719ba4a7c7  # sha256 of `git diff BASE MEASURED`
-TF_INT4_REF=47c7aa058f6d262b0a859f629c649780e0365515      # vcruz305/TensorFold glm53-kv-int4 (unvalidated, opt-in)
+TF_INT4_REF=0c858e3402adcd35a72b9338f7d9b10636f68687      # vcruz305/TensorFold glm53-kv-int4: the GPU-validated int4 tree
+TF_INT4_DIFF_SHA=d3866de2b11f767d23084b83074184927af9f37a47f628d8b3991137ca987109      # sha256 of `git diff BASE INT4`
+
+# ---- profile --------------------------------------------------------------------------------------------------------
+# DEFAULT_PROFILE is what a bare `./glm53 up` (and every script here) serves. The default profile is always treated as
+# validated, so switching the default to int4-262k after its quality gate passes is this one line.
+DEFAULT_PROFILE=fast-160k
+PROFILE="${PROFILE:-$DEFAULT_PROFILE}"
+[[ -f "$RECIPE_TP4_DIR/profiles/$PROFILE.env" ]] \
+  || die "PROFILE=$PROFILE: no profiles/$PROFILE.env (choose fast-160k, dcp4-262k or int4-262k)"
+# shellcheck source=profiles/fast-160k.env
+source "$RECIPE_TP4_DIR/profiles/$PROFILE.env"
+if [[ "$PROFILE" == "$DEFAULT_PROFILE" ]]; then PROFILE_VALIDATED=1; fi
 TF_REF="${TF_REF:-$TF_MEASURED_REF}"                      # profiles/int4-262k.env sets TF_INT4_REF
+WITH_INT4="${WITH_INT4:-1}"                               # setup.sh also installs the int4 tree (a second checkout)
 
 # ---- b12x RoCE one-shot reductions (local-inference-lab/b12x, Apache-2.0) -------------------------------------------
 # PR #159's serving image uses b58f34e. PyPI b12x 1.3.0 predates the comm/roce module; do not pip install it.
@@ -54,13 +62,15 @@ TILES_SHA=db409731548ce676d14f29818ff689611202c27023f5cc4bcb93cbd871d6c84a
 # ---- where things live on each Spark ----------------------------------------------------------------------------------
 RECIPE_HOME="${RECIPE_HOME:-$HOME/glm53-tensorfold}"
 VENV="${VENV:-$RECIPE_HOME/venv}"
-TF_SRC_DIR="${TF_SRC_DIR:-$RECIPE_HOME/TensorFold-${TF_REF:0:12}}"
+tf_dir_for() { echo "$RECIPE_HOME/TensorFold-${1:0:12}"; }   # one checkout per pinned tree, side by side
+TF_SRC_DIR="${TF_SRC_DIR:-$(tf_dir_for "$TF_REF")}"
 B12X_STAGE="${B12X_STAGE:-$RECIPE_HOME/b12x-${B12X_REF:0:12}}"
 STATE_DIR="${STATE_DIR:-$RECIPE_HOME/state}"
-MODEL_ROOT="${MODEL_ROOT:-$HOME/models}"
-PACK_DIR="${PACK_DIR:-$MODEL_ROOT/GLM-5.3-EXL3-3.38bpw}"
-DRAFTER_DIR="${DRAFTER_DIR:-$MODEL_ROOT/GLM-5.3-DFlash2}"
-HEAD_DIR="${HEAD_DIR:-$MODEL_ROOT/GLM-5.3-lm_head-bf16}"
+tilde() { if [[ "$1" == "~/"* ]]; then echo "$HOME/${1#\~/}"; else echo "$1"; fi; }   # '~/x' from a driver = this home
+MODEL_ROOT="$(tilde "${MODEL_ROOT:-$HOME/models}")"
+PACK_DIR="$(tilde "${PACK_DIR:-${MODEL_DIR:-$MODEL_ROOT/GLM-5.3-EXL3-3.38bpw}}")"   # MODEL_DIR=<an existing pack> too
+DRAFTER_DIR="$(tilde "${DRAFTER_DIR:-$MODEL_ROOT/GLM-5.3-DFlash2}")"
+HEAD_DIR="$(tilde "${HEAD_DIR:-$MODEL_ROOT/GLM-5.3-lm_head-bf16}")"
 VIEW_DIR="${VIEW_DIR:-$RECIPE_HOME/view}"                 # symlinks to the pack + lm_head + the fixed chat template
 TILES="${TILES:-$RECIPE_TP4_DIR/tiles/tiles.json}"
 HOSTS_FILE="${HOSTS_FILE:-$RECIPE_TP4_DIR/hosts}"
@@ -116,7 +126,8 @@ TFS_CTL="$STATE_DIR/ctl"
 TFS_LOGS="$STATE_DIR/logs"
 TFS_IFNAME="$FABRIC_IFNAME"
 TFS_HCA="$ROCE_HCA"
-TFS_NCCL_LIB="${TFS_NCCL_LIB:-$(ls "$VENV"/lib/python3*/site-packages/nvidia/nccl/lib/libnccl.so.2 2>/dev/null | head -n 1)}"
+# (|| true: setup.sh sources this under set -e -o pipefail before the venv exists, and a failed ls must not end it)
+TFS_NCCL_LIB="${TFS_NCCL_LIB:-$(ls "$VENV"/lib/python3*/site-packages/nvidia/nccl/lib/libnccl.so.2 2>/dev/null | head -n 1 || true)}"
 
 # ---- hosts file: "rank ssh_target fabric_ip [peer_ssh]", one line per rank ------------------------------------------
 # Sets H_SSH[r], H_IP[r], H_PEER[r] (r = 0..3), TFS_MASTER (rank 0's fabric IP) and TFS_PEERS (ranks 1-3 as rank 0's
@@ -149,10 +160,10 @@ read_hosts() {
 # ---- profile gate ---------------------------------------------------------------------------------------------------
 check_profile() {
   if [[ "${PROFILE_VALIDATED:-1}" != 1 && "${ALLOW_UNVALIDATED:-0}" != 1 ]]; then
-    die "PROFILE=$PROFILE is pending validation (no measured speed, memory or quality figure). Set ALLOW_UNVALIDATED=1 to run it anyway, or use the default profile"
+    die "PROFILE=$PROFILE is not validated yet (${PROFILE_NOTE:-no measured figures}). Run it anyway with ALLOW_UNVALIDATED=1 (./glm53 up --profile $PROFILE --allow-unvalidated), or use the default profile ($DEFAULT_PROFILE)"
   fi
   if [[ "${PROFILE_VALIDATED:-1}" != 1 ]]; then
-    echo "warning: PROFILE=$PROFILE is PENDING VALIDATION: nothing about it has been measured on a Spark" >&2
+    echo "warning: PROFILE=$PROFILE is NOT VALIDATED: ${PROFILE_NOTE:-nothing about it has been measured}" >&2
   fi
   if [[ "$TFS_KV_DTYPE" != bf16 && "$TF_REF" == "$TF_MEASURED_REF" ]]; then
     die "TFS_KV_DTYPE=$TFS_KV_DTYPE needs the glm53-kv-int4 TensorFold branch (PROFILE=int4-262k sets it); the measured pin has no quantized cache"
@@ -171,9 +182,12 @@ verify_runtime() {
   [[ "$head" == "$TF_REF" ]] || die "TensorFold at $TF_SRC_DIR is ${head:0:12}, the recipe pins ${TF_REF:0:12}. Run setup.sh"
   [[ -z "$(git -C "$TF_SRC_DIR" status --porcelain --untracked-files=no)" ]] \
     || die "the TensorFold checkout $TF_SRC_DIR has local edits; the recipe serves the pinned tree only (git -C $TF_SRC_DIR stash)"
-  if [[ "$TF_REF" == "$TF_MEASURED_REF" ]]; then
-    local d; d="$(git -C "$TF_SRC_DIR" diff "$TF_BASE" "$TF_REF" | sha256sum | cut -d' ' -f1)"
-    [[ "$d" == "$TF_MEASURED_DIFF_SHA" ]] || die "TensorFold diff vs PR #159 is $d, not the measured $TF_MEASURED_DIFF_SHA"
+  local want=""
+  [[ "$TF_REF" == "$TF_MEASURED_REF" ]] && want="$TF_MEASURED_DIFF_SHA"
+  [[ "$TF_REF" == "$TF_INT4_REF" ]] && want="$TF_INT4_DIFF_SHA"
+  if [[ -n "$want" ]]; then
+    local d; d="$(git -C "$TF_SRC_DIR" -c core.abbrev=7 diff "$TF_BASE" "$TF_REF" | sha256sum | cut -d' ' -f1)"
+    [[ "$d" == "$want" ]] || die "TensorFold diff vs PR #159 at $TF_SRC_DIR is ${d:0:16}..., not the pinned ${want:0:16}... Run setup.sh"
   fi
   "$py" - "$TFS_CLONE" "$TFS_KV_DTYPE" <<'PY' || die "the TensorFold / torch in $VENV is not the recipe runtime. Run: bash tensorfold-four-spark-tp4/setup.sh"
 import importlib.util, os, sys
@@ -205,8 +219,8 @@ PY
       || die "no b12x RoCE module staged at $B12X_STAGE (b12x @ ${B12X_REF:0:7}). Run setup.sh, or TFS_ROCE=0 for NCCL reductions"
     say "b12x @ ${B12X_REF:0:7} staged at $B12X_STAGE"
   fi
-  [[ -f "$STATE_DIR/runtime-ref" && "$(cat "$STATE_DIR/runtime-ref")" == "$TF_REF" ]] \
-    || echo "warning: setup.sh has not recorded a build of ${TF_REF:0:12} in $STATE_DIR/runtime-ref" >&2
+  grep -qx "$TF_REF" "$STATE_DIR/runtime-refs" 2>/dev/null \
+    || echo "warning: setup.sh has not recorded an install of ${TF_REF:0:12} in $STATE_DIR/runtime-refs" >&2
   return 0
 }
 
@@ -224,7 +238,15 @@ verify_view() {
   [[ "$(sha256sum "$TILES" | cut -d' ' -f1)" == "$TILES_SHA" ]] || die "$TILES is not the pinned tile table"
   [[ -f "$DRAFTER_DIR/config.json" && -f "$DRAFTER_DIR/model.safetensors" ]] \
     || die "no DFlash2 drafter at $DRAFTER_DIR. Run setup.sh"
-  local n; n="$(ls "$PACK_DIR"/model-*-of-00058.safetensors 2>/dev/null | wc -l)"
-  [[ "$n" == 58 ]] || die "$PACK_DIR has $n of 58 weight shards. Re-run setup.sh (hf download resumes)"
+  check_pack || die "the pack at $PACK_DIR is incomplete (above). Re-run setup.sh (downloads resume), or copy it again"
   return 0
+}
+
+# ---- pack check: 58 shards, the pinned config, and every shard as long as its own safetensors header says ---------------
+# Catches a missing shard and a truncated copy without hashing 319 GB. stdlib python3 only.
+check_pack() {
+  [[ -f "$PACK_DIR/config.json" ]] || { echo "no pack at $PACK_DIR" >&2; return 1; }
+  [[ "$(sha256sum "$PACK_DIR/config.json" | cut -d' ' -f1)" == "$PACK_CONFIG_SHA" ]] \
+    || { echo "$PACK_DIR/config.json is not $PACK_REPO @ ${PACK_REV:0:7}" >&2; return 1; }
+  python3 "$RECIPE_TP4_DIR/tools/check_pack.py" "$PACK_DIR" 58
 }

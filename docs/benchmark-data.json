@@ -12,6 +12,7 @@
   "sources": {
     "serve160k": "/v1 server, --context 163840, TF_GLM53_DCP=1 (profile fast-160k); bench/longctx_run.py; bench/records/2026-10-05-serve-160k/",
     "serve262k": "/v1 server, --context 262144, TF_GLM53_DCP=4 (profile dcp4-262k); bench/longctx_run.py; bench/records/2026-10-05-serve-262k-dcp4/",
+    "serve262k_int4": "/v1 server, --context 262144, TF_GLM53_DCP=1, --kv-dtype int4 (profile int4-262k), through a copy of lib/ (TODO(confirm)); 1 serial + 3 drafted per prompt; bench/records/2026-10-05-serve-262k-int4/",
     "sweep": "in-process speed sweep, context 32768, median of 3; bench/records/2026-10-05-sweep/",
     "sixcat": "SixCat v0.7.0 speed suite, strict, thinking off, client-side; synthetic decode prompt = a ceiling, not user-facing speed"
   },
@@ -41,7 +42,7 @@
   "profiles": [
     {"name": "fast-160k (default)", "context": 163840, "dflash2_mean": 41.11, "serial_mean": 26.46, "sixcat_decode_p50": 69.19, "sixcat_prefill_p50": 313.4, "min_mem_available_gib": 4.86, "status": "measured"},
     {"name": "dcp4-262k", "context": 262144, "dflash2_mean": 35.91, "serial_mean": 23.67, "sixcat_decode_p50": 57.08, "sixcat_prefill_p50": 232.2, "min_mem_available_gib": 14.79, "status": "measured"},
-    {"name": "int4-262k", "context": 262144, "dflash2_mean": null, "serial_mean": null, "sixcat_decode_p50": null, "sixcat_prefill_p50": null, "min_mem_available_gib": null, "status": "pending validation"}
+    {"name": "int4-262k", "context": 262144, "dflash2_mean": 40.62, "serial_mean": 25.31, "sixcat_decode_p50": 68.18, "sixcat_prefill_p50": 307.9, "min_mem_available_gib": 6.35, "status": "TODO(confirm): measured through a copy of lib/; quality gate not finished (opt-in)"}
   ],
   "sweep": {
     "source": "sweep",

@@ -1,0 +1,81 @@
+
+=== DECODE PROFILE ===
+workload: prompt_words=32 max_tokens=512
+purpose: short prompt + long generation to expose sustained decode speed
+CONCURRENCY CURVE (unscored synthetic probes)
+   C      ok  usable    agg t/s     req/s   TTFT p95    dec p50
+----------------------------------------------------------------------------
+   1 4/4         yes      60.54      0.12   1022.5ms      68.26
+   2 4/4         yes      61.98      0.12   9103.9ms      67.99
+   4 6/8          NO      51.21      0.12  15275.9ms      67.20
+----------------------------------------------------------------------------
+aggregate output tps = level-wall throughput; includes prefill, queueing, and failure wall time
+max usable concurrency: 2 (min success=95%)
+recommended concurrency: 1 (usable peak=2, confidence=low)
+selection: smallest concurrency reaching at least 90% of measured peak aggregate_output_tps; lower concurrency wins near-ties to reduce latency and KV pressure
+excluded from knee for failures: C=4
+
+SPEED CONFIRMATION @ concurrency=1 (32/32 successful)
+aggregate output tps (includes prefill/queue): 60.31 tok/s
+request rate: 0.12 req/s
+DECODE — per-stream sustained generation:
+  p50=68.18  p95=69.19  max=69.45 tok/s
+  best-sustained decode (p90): 69.12 tok/s
+PREFILL — client-observed effective prompt ingestion:
+  p50=121.64  p95=139.93  max=140.95 tok/s (includes network/queue)
+client TTFT: p50=1002.2ms p95=1040.7ms p99=1090.1ms
+E2E latency: p50=8479.8ms p95=8674.5ms p99=8751.4ms
+TPOT: p50=14.7ms p95=15.0ms p99=15.1ms
+server prefill: p5=n/a p50=n/a tok/s
+server decode: p5=n/a p50=n/a tok/s
+server metrics: unavailable for this route — the route exposes /v1/models but no llama.cpp /props and returned no per-request provider timing metrics
+NOTE: p99 has <100 request samples; use --samples 100+ for stronger tail-latency evidence.
+
+=== BALANCED PROFILE ===
+workload: prompt_words=256 max_tokens=128
+purpose: mixed prompt/generation workload for realistic serving throughput
+CONCURRENCY CURVE (unscored synthetic probes)
+   C      ok  usable    agg t/s     req/s   TTFT p95    dec p50
+----------------------------------------------------------------------------
+   1 4/4         yes      35.38      0.28   1773.1ms      68.34
+   2 4/4         yes      36.44      0.28   5184.5ms      67.19
+   4 8/8         yes      37.22      0.29  17142.6ms      67.37
+   8 16/16        yes      37.98      0.30  39389.5ms      67.40
+----------------------------------------------------------------------------
+aggregate output tps = level-wall throughput; includes prefill, queueing, and failure wall time
+max usable concurrency: 8 (min success=95%)
+recommended concurrency: 1 (usable peak=8, confidence=high)
+selection: smallest concurrency reaching at least 90% of measured peak aggregate_output_tps; lower concurrency wins near-ties to reduce latency and KV pressure
+
+SPEED CONFIRMATION @ concurrency=1 (23/32 successful)
+aggregate output tps (includes prefill/queue): 31.43 tok/s
+request rate: 0.25 req/s
+DECODE — per-stream sustained generation:
+  p50=67.34  p95=70.04  max=70.32 tok/s
+  best-sustained decode (p90): 69.94 tok/s
+PREFILL — client-observed effective prompt ingestion:
+  p50=215.27  p95=226.60  max=235.23 tok/s (includes network/queue)
+client TTFT: p50=1788.5ms p95=1980.1ms p99=1998.8ms
+E2E latency: p50=3653.3ms p95=5962.4ms p99=6145.9ms
+TPOT: p50=14.8ms p95=33.5ms p99=34.2ms
+server prefill: p5=n/a p50=n/a tok/s
+server decode: p5=n/a p50=n/a tok/s
+server metrics: unavailable for this route — the route exposes /v1/models but no llama.cpp /props and returned no per-request provider timing metrics
+NOTE: p99 has <100 request samples; use --samples 100+ for stronger tail-latency evidence.
+usage: sixcat speed [-h] [--base-url BASE_URL] --model MODEL
+                    [--api-key API_KEY] [--policy {strict,vendor,custom}]
+                    [--policy-family POLICY_FAMILY]
+                    [--temperature TEMPERATURE] [--top-p TOP_P]
+                    [--top-k TOP_K] [--min-p MIN_P] [--seed SEED]
+                    [--thinking {on,off}]
+                    [--profile {all,decode,balanced,prefill,custom}]
+                    [--concurrency CONCURRENCY] [--candidates CANDIDATES]
+                    [--curve-seconds CURVE_SECONDS]
+                    [--curve-requests-per-worker CURVE_REQUESTS_PER_WORKER]
+                    [--curve-min-requests CURVE_MIN_REQUESTS]
+                    [--knee-fraction KNEE_FRACTION]
+                    [--min-success-rate MIN_SUCCESS_RATE] [--samples SAMPLES]
+                    [--prompt-words PROMPT_WORDS] [--max-tokens MAX_TOKENS]
+                    [--max-seconds MAX_SECONDS]
+                    [--request-timeout REQUEST_TIMEOUT] [--out OUT]
+sixcat speed: error: total speed-suite budget expired before profile prefill

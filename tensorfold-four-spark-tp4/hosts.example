@@ -1,4 +1,5 @@
-# Four DGX Sparks, one rank each. Copy to `hosts` (git-ignored) and edit:
+# Four DGX Sparks, one rank each. `./glm53 init --hosts H0,H1,H2,H3` writes `hosts` (git-ignored) for you, detecting
+# the fabric IPs; by hand, copy this file and edit it:
 #   cp tensorfold-four-spark-tp4/hosts.example tensorfold-four-spark-tp4/hosts
 #
 # columns: rank  ssh_target  fabric_ip  [peer_ssh]
