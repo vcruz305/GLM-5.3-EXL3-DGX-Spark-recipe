@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-5.3 EXL3 on four DGX Sparks: measured results</title>
+<style>
+  :root { --bg: #0e1116; --card: #161b22; --fg: #e6edf3; --dim: #8b949e; --a: #3fb950; --b: #58a6ff; --c: #d29922; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 34px 0 6px; }
+  .sub, .src { color: var(--dim); font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 18px; }
+  .card { background: var(--card); border-radius: 10px; padding: 14px 16px; }
+  .card .v { font-size: 30px; font-weight: 700; }
+  .card .l { color: var(--dim); font-size: 13px; }
+  svg { width: 100%; height: auto; background: var(--card); border-radius: 10px; margin-top: 8px; }
+  svg text { fill: var(--fg); font: 12px system-ui, sans-serif; }
+  svg .dim { fill: var(--dim); }
+  .legend span { display: inline-block; margin-right: 16px; font-size: 13px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #21262d; font-size: 13px; }
+  th:first-child, td:first-child { text-align: left; }
+  .err { color: #f85149; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">GLM-5.3 EXL3 on four DGX Sparks</h1>
+  <div class="sub" id="meta"></div>
+  <div class="cards" id="cards"></div>
+
+  <h2>Decode per prompt</h2>
+  <div class="src" id="src-decode"></div>
+  <div class="legend"><span><i style="background:var(--a)"></i>with DFlash2</span><span><i style="background:var(--b)"></i>without drafting</span></div>
+  <svg id="decode" viewBox="0 0 1000 340" role="img" aria-label="decode tok/s per prompt"></svg>
+
+  <h2>Long prompts</h2>
+  <div class="src" id="src-long"></div>
+  <table id="long"></table>
+
+  <h2>Profiles</h2>
+  <div class="src">Means over the same 6 prompts; SixCat decode is a synthetic, highly draftable workload (a ceiling).</div>
+  <table id="profiles"></table>
+
+  <h2>Speed sweep (in-process harness)</h2>
+  <div class="src" id="src-sweep"></div>
+  <svg id="sweep" viewBox="0 0 1000 230" role="img" aria-label="sweep tok/s"></svg>
+  <p class="src">A saved-results viewer: it runs no inference. Data: <a href="benchmark-data.json" style="color:var(--b)">benchmark-data.json</a>; records in the repository's bench/records/.</p>
+</main>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function fmt(x, d = 2) { return x === null || x === undefined ? "\u2014" : Number(x).toFixed(d); }
+function table(id, head, rows) {
+  const t = document.getElementById(id);
+  t.innerHTML = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>" +
+    rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+}
+function render(d) {
+  document.getElementById("title").textContent = d.title;
+  document.getElementById("meta").textContent = `${d.hardware}. Measured ${d.measured}. ${d.runtime.tensorfold}; b12x ${d.runtime.b12x}; ${d.runtime.drafter}.`;
+  const cards = [
+    [fmt(d.decode_per_prompt.mean_dflash2), "tok/s decode with DFlash2, mean of 6 real prompts (/v1, 160K context)"],
+    [fmt(d.decode_per_prompt.mean_serial), "tok/s without drafting, same prompts"],
+    [fmt(d.long_prompts.rows[0].dflash2_tok_s), "tok/s with DFlash2 after a 127,544-token prompt"],
+    ["6 / 6", "prompts where the drafted reply equals the serial reply token for token"],
+  ];
+  const c = document.getElementById("cards");
+  for (const [v, l] of cards) {
+    const div = document.createElement("div"); div.className = "card";
+    div.innerHTML = `<div class="v">${v}</div><div class="l">${l}</div>`; c.appendChild(div);
+  }
+  document.getElementById("src-decode").textContent = `${d.decode_per_prompt.conditions}. Source: ${d.sources[d.decode_per_prompt.source]}`;
+  const s = document.getElementById("decode");
+  const P = d.decode_per_prompt.prompts, max = 60, x0 = 150, w = 800, rowH = 52;
+  for (let g = 0; g <= max; g += 10) {
+    const x = x0 + w * g / max;
+    s.appendChild(el("line", {x1: x, x2: x, y1: 10, y2: 10 + rowH * P.length, stroke: "#21262d"}));
+    s.appendChild(el("text", {x: x, y: 330, "text-anchor": "middle", class: "dim"}, g));
+  }
+  P.forEach((p, i) => {
+    const y = 14 + i * rowH;
+    s.appendChild(el("text", {x: 10, y: y + 20}, `${p.name} (${p.prompt_tokens})`));
+    s.appendChild(el("rect", {x: x0, y: y, width: w * p.dflash2 / max, height: 20, fill: "#3fb950", rx: 3}));
+    s.appendChild(el("text", {x: x0 + w * p.dflash2 / max + 6, y: y + 15}, fmt(p.dflash2)));
+    s.appendChild(el("rect", {x: x0, y: y + 23, width: w * p.serial / max, height: 14, fill: "#58a6ff", rx: 3}));
+    s.appendChild(el("text", {x: x0 + w * p.serial / max + 6, y: y + 35, class: "dim"}, fmt(p.serial)));
+  });
+  document.getElementById("src-long").textContent = `${d.long_prompts.conditions}. Source: ${d.sources[d.long_prompts.source]}`;
+  table("long", ["prompt", "decode with DFlash2", "decode without drafting", "TTFT (s)", "prefill tok/s", "drafted == serial"],
+    d.long_prompts.rows.map(r => [r.name, fmt(r.dflash2_tok_s), fmt(r.serial_tok_s), fmt(r.ttft_s), fmt(r.prefill_tok_s, 1),
+      r.ids_equal === null ? (r.note || "\u2014") : (r.ids_equal ? "yes" : "no")]));
+  table("profiles", ["profile", "context", "DFlash2 mean", "serial mean", "SixCat decode p50", "SixCat prefill p50", "min MemAvailable GiB", "status"],
+    d.profiles.map(p => [p.name, p.context.toLocaleString("en-US"), fmt(p.dflash2_mean), fmt(p.serial_mean), fmt(p.sixcat_decode_p50),
+      fmt(p.sixcat_prefill_p50, 1), fmt(p.min_mem_available_gib), p.status]));
+  document.getElementById("src-sweep").textContent = `${d.sweep.exactness}. Source: ${d.sources.sweep}`;
+  const sw = document.getElementById("sweep");
+  d.sweep.rows.forEach((r, i) => {
+    const y = 12 + i * 42;
+    sw.appendChild(el("text", {x: 10, y: y + 17}, r.name));
+    sw.appendChild(el("rect", {x: 340, y: y, width: 560 * r.tok_s / 50, height: 24, fill: i < 3 ? "#3fb950" : "#58a6ff", rx: 3}));
+    sw.appendChild(el("text", {x: 340 + 560 * r.tok_s / 50 + 6, y: y + 17}, fmt(r.tok_s)));
+  });
+}
+fetch("benchmark-data.json").then(r => r.json()).then(render).catch(e => {
+  document.getElementById("meta").innerHTML = `<span class="err">Could not load benchmark-data.json (${e}). Serve this folder over HTTP: python3 -m http.server -d docs</span>`;
+});
+</script>
+</body>
+</html>

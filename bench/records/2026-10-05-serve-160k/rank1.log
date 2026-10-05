@@ -1,0 +1,66 @@
+[tf_serve] rank 1 env: B12X_COMPILE_CACHE_DIR=/workspace/b12x/compile_cache B12X_ROCE_CACHE_DIR=/workspace/b12x/roce_cache B12X_ROCE_GID_INDEX=3 B12X_ROCE_SPIN_LIMIT=300000000 CUDA_VISIBLE_DEVICES=0 GLOO_SOCKET_IFNAME=enp1s0f0np0 NCCL_IB_HCA=rocep1s0f0 NCCL_SOCKET_IFNAME==enp1s0f0np0 PYTHONDONTWRITEBYTECODE=1 PYTHONFAULTHANDLER=1 PYTHONUNBUFFERED=1 TENSORFOLD_NO_UPDATE_CHECK=1 TFS_ALIAS=glm-5.3 TFS_API_KEY_FILE= TFS_B12X_ENV=/workspace/b12x/env.sh TFS_CLONE=/workspace/TensorFold/src TFS_CLONE_DIFF_SHA=1555d8ad577dccf99db990c90f9427b001ecdce91da05e23fcde01719ba4a7c7 TFS_CLONE_HEAD=689596d723115dc99d3c543e88847ebb93d00565 TFS_CONTEXT=163840 TFS_CTL=/workspace/tf_serve/ctl TFS_DFLASH=/workspace/models/GLM-5.3-DFlash2 TFS_DFLASH_CONFIDENCE=0.60 TFS_DFLASH_DEPTH=7 TFS_DRAFT_DEFAULT=1 TFS_FADVISE_DIRS=/workspace/view /workspace/models/GLM-5.3-EXL3-3.38bpw /workspace/models/lm_head_src /workspace/models/GLM-5.3-DFlash2 TFS_HCA=rocep1s0f0 TFS_HEALTH=round TFS_HOME=/workspace/tf_serve TFS_HTTP_HOST=127.0.0.1 TFS_HTTP_PORT=8890 TFS_IFNAME=enp1s0f0np0 TFS_LOGS=/workspace/tf_serve/logs TFS_MASTER=10.0.0.10 TFS_MASTER_PORT=29750 TFS_MAX_TOKENS=4096 TFS_MIN_AVAIL_GIB=2 TFS_MIN_START_GIB=100 TFS_NAME=GLM-5.3-EXL3-3.38bpw TFS_NCCL_LIB=/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2 TFS_OFFICIAL_TEMPLATE_SHA=3740abcea51c45830cb3ca562084ad5fb2ef53589376f73332e9886f93ade41c TFS_PROMPT_ROWS=2048 TFS_RANKS=spark-0:0:10.0.0.10 spark-1:1:10.0.0.11 spark-2:2:10.0.0.12 spark-3:3:10.0.0.13 TFS_ROCE=1 TFS_SRC_VIEW=/workspace/view TFS_SSH_HOSTS=spark-0 spark-1 spark-2 spark-3 TFS_TEMPLATE_SHA=2059ad4b073838cebd243d09b6633833e633edd866b95c549be25483909b00d0 TFS_THINKING=1 TFS_TILES=/workspace/tf_serve/tiles/tiles.json TFS_TILES_SHA=db409731548ce676d14f29818ff689611202c27023f5cc4bcb93cbd871d6c84a TFS_TILES_SRC=/workspace/tf_speed/tiles/tiles.json TFS_VENV_PY=/workspace/venv/bin/python TFS_VERIFY_ROWS=8 TFS_VIEW=/workspace/view TFS_WARMUP=1 TFS_WATCH_GRACE_S=45 TF_GLM53_CACHE_RESERVE_GB=6 TF_GLM53_DCP=1 TF_GLM53_DFLASH=/workspace/models/GLM-5.3-DFlash2 TF_GLM53_DFLASH_CONFIDENCE=0.60 TF_GLM53_DFLASH_DEPTH=7 TF_GLM53_PROFILE_FLAG=/workspace/tf_serve/ctl/PROFILE TF_GLM53_PROMPT_ROWS=2048 TF_GLM53_ROCE=1 TF_GLM53_VERIFY_ROWS=8 TF_NCCL_LIB=/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2
+[tf_serve] rank 1 argv: tensorfold serve /workspace/view --backend cuda --tp 4 --rank 1 --master 10.0.0.10 --master-port 29750 --context 163840 --host 127.0.0.1 --port 8890 --name GLM-5.3-EXL3-3.38bpw --max-tokens 4096 --thinking --no-update-check --alias glm-5.3
+[tensorfold] GLM-5.3 runs on four NVIDIA GPUs with 128 GB each (four DGX Sparks): serve with --tp 4 on all four (docs/design/glm-moe-dsa-tp4.md)
+[tensorfold] loading GLM-5.3-EXL3-3.38bpw: GLM-5.3 (glm_moe_dsa) on CUDA, rank 1 of 4
+[tf_speed] tiles pinned from /workspace/tf_serve/tiles/tiles.json (sha db409731548ce676): 567 linears, 352 differ from plan()
+[E1005 11:46:52.324094910 socket.cpp:1028] [c10d] The client socket has timed out after 120000ms while trying to connect to (10.0.0.10, 29761).
+[W1005 11:46:52.324301678 TCPStore.cpp:340] [c10d] TCP client failed to connect/validate to host 10.0.0.10:29761 - retrying (try=0, timeout=120000ms, delay=42443ms): The client socket has timed out after 120000ms while trying to connect to (10.0.0.10, 29761).
+Exception raised from throwTimeoutError at /__w/pytorch/pytorch/torch/csrc/distributed/c10d/socket.cpp:1030 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0xc8 (0xf4d55d53d558 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #1: c10::DistError::DistError(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x78 (0xf4d55d53e148 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #2: c10::DistNetworkError::DistNetworkError(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x78 (0xf4d55d53e4c8 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #3: <unknown function> + 0x72b4454 (0xf4d57c9c4454 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: <unknown function> + 0x72b7a84 (0xf4d57c9c7a84 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: <unknown function> + 0x72b7ddc (0xf4d57c9c7ddc in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #6: <unknown function> + 0x72b8318 (0xf4d57c9c8318 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #7: <unknown function> + 0x7220f5c (0xf4d57c930f5c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #8: c10d::TCPStore::TCPStore(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, c10d::TCPStoreOptions const&) + 0x310 (0xf4d57c93c570 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #9: <unknown function> + 0x1267d2c (0xf4d581f97d2c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #10: <unknown function> + 0x12f0448 (0xf4d582020448 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #11: <unknown function> + 0x639cb4 (0xf4d581369cb4 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #12: <unknown function> + 0x370904 (0xc26763e10904 in /workspace/venv/bin/python)
+frame #13: <unknown function> + 0x34c684 (0xc26763dec684 in /workspace/venv/bin/python)
+frame #14: _PyObject_Call + 0x114 (0xc26763f11c30 in /workspace/venv/bin/python)
+frame #15: <unknown function> + 0x3842b0 (0xc26763e242b0 in /workspace/venv/bin/python)
+frame #16: <unknown function> + 0x3869b0 (0xc26763e269b0 in /workspace/venv/bin/python)
+frame #17: <unknown function> + 0x63850c (0xf4d58136850c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #18: _PyEval_EvalFrameDefault + 0x35d08 (0xc26763e855b0 in /workspace/venv/bin/python)
+frame #19: <unknown function> + 0x352284 (0xc26763df2284 in /workspace/venv/bin/python)
+frame #20: <unknown function> + 0x3ac724 (0xc26763e4c724 in /workspace/venv/bin/python)
+frame #21: <unknown function> + 0x3707f0 (0xc26763e107f0 in /workspace/venv/bin/python)
+frame #22: _PyEval_EvalFrameDefault + 0x35944 (0xc26763e851ec in /workspace/venv/bin/python)
+frame #23: <unknown function> + 0x383d70 (0xc26763e23d70 in /workspace/venv/bin/python)
+frame #24: <unknown function> + 0x3869b0 (0xc26763e269b0 in /workspace/venv/bin/python)
+frame #25: _PyEval_EvalFrameDefault + 0x35d08 (0xc26763e855b0 in /workspace/venv/bin/python)
+frame #26: <unknown function> + 0x383d70 (0xc26763e23d70 in /workspace/venv/bin/python)
+frame #27: <unknown function> + 0x3869b0 (0xc26763e269b0 in /workspace/venv/bin/python)
+frame #28: _PyEval_EvalFrameDefault + 0x35d08 (0xc26763e855b0 in /workspace/venv/bin/python)
+frame #29: PyEval_EvalCode + 0xdc (0xc26763f9e838 in /workspace/venv/bin/python)
+frame #30: <unknown function> + 0x533408 (0xc26763fd3408 in /workspace/venv/bin/python)
+frame #31: <unknown function> + 0x27e0bc (0xc26763d1e0bc in /workspace/venv/bin/python)
+frame #32: _PyRun_SimpleFileObject + 0x124 (0xc26763d1dae8 in /workspace/venv/bin/python)
+frame #33: _PyRun_AnyFileObject + 0x50 (0xc26763d1d3d8 in /workspace/venv/bin/python)
+frame #34: <unknown function> + 0x28cbb4 (0xc26763d2cbb4 in /workspace/venv/bin/python)
+frame #35: <unknown function> + 0x28c5e8 (0xc26763d2c5e8 in /workspace/venv/bin/python)
+frame #36: Py_RunMain + 0x438 (0xc26763fe5e04 in /workspace/venv/bin/python)
+frame #37: <unknown function> + 0x546724 (0xc26763fe6724 in /workspace/venv/bin/python)
+frame #38: <unknown function> + 0x43b470 (0xc26763edb470 in /workspace/venv/bin/python)
+frame #39: <unknown function> + 0x284c4 (0xf4d6121684c4 in /lib/aarch64-linux-gnu/libc.so.6)
+frame #40: __libc_start_main + 0x98 (0xf4d612168598 in /lib/aarch64-linux-gnu/libc.so.6)
+frame #41: <unknown function> + 0x43b360 (0xc26763edb360 in /workspace/venv/bin/python)
+
+[tensorfold] RoCE one-shot reduce ready (ranks bit-equal: True; equals the NCCL rank-order sum: True; windows of 3 and 32 rows)
+[tensorfold] rank 1: took rank 0's tiles (0 of 567 linears differed)
+[tensorfold] rank 1: dropped page cache of 59 checkpoint files; device free 27.7 GiB before the caches
+[tensorfold] CUDA extension tensorfold_qmm_v5 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_qmm_v5/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] rank 1: DFlash2 drafter GLM-5.3-DFlash2 (block 8, taps (5, 19, 33, 47, 61, 75)) - per request "tf_mtp": "dflash"
+[tensorfold] rank 1: host anon 1.9 GiB after load, device free 8.6 of 119.6 GiB
+[tensorfold] GLM-5.3 rank 1/4: 0 layers loaded in 425s, context 163840 (fused, CUDA graphs; MTP drafts 0; token-level DSA past 2048)
+[tensorfold] rank 1: host anon 1.9 GiB, device free 8.6 GiB before warm-up
+[tensorfold] CUDA extension tensorfold_exl3_linear_v5 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_exl3_linear_v5/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] CUDA extension tensorfold_exl3_experts_v2 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_exl3_experts_v2/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] rank 1: 128 decode graphs captured in 27.6s (key buckets [None, 4096, 8192, 16384, 32768, 65536, 131072, 262144])
+[tf_serve] rank 1: tiles in use sha db409731548ce676 (pinned db409731548ce676)
+[tf_serve] rank 1: startup consensus ok - DFlash2 depth 7 confidence 0.6, verify rows 8, drafter block 8, health guard round, decode reductions RoCE one-shot, default DFlash2
+[tf_serve] rank 1: READY (following rank 0)
+[tensorfold] rank 1 ready in 466.0s, following rank 0

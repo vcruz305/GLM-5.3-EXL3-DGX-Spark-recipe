@@ -1,0 +1,310 @@
+{
+ "rows": [
+  {
+   "prompt": "code",
+   "prompt_len": 52,
+   "runs": [
+    {
+     "tok_s": 38.3,
+     "client_tok_s": 38.299319632098744,
+     "tokens_per_round": 3.676,
+     "ttft_s": 0.46317510199151,
+     "ms_per_round": {
+      "draft": 7.39,
+      "verify": 87.8,
+      "taps": 0.73
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 24.07,
+    "client_tok_s": 24.0684317154963,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 0.4619965919991955
+   },
+   "tok_s": 38.3,
+   "client_tok_s": 38.299319632098744,
+   "tpr": 3.676,
+   "sweep_A": 40.62,
+   "sweep_C": 40.54
+  },
+  {
+   "prompt": "prose",
+   "prompt_len": 45,
+   "runs": [
+    {
+     "tok_s": 29.7,
+     "client_tok_s": 29.696509649327133,
+     "tokens_per_round": 2.271,
+     "ttft_s": 0.4049879349768162,
+     "ms_per_round": {
+      "draft": 7.54,
+      "verify": 68.16,
+      "taps": 0.72
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 24.04,
+    "client_tok_s": 24.039401249309993,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 0.4039820749894716
+   },
+   "tok_s": 29.7,
+   "client_tok_s": 29.696509649327133,
+   "tpr": 2.271,
+   "sweep_A": 35.58,
+   "sweep_C": 35.16
+  },
+  {
+   "prompt": "math",
+   "prompt_len": 59,
+   "runs": [
+    {
+     "tok_s": 46.2,
+     "client_tok_s": 46.20279124178544,
+     "tokens_per_round": 5.323,
+     "ttft_s": 0.4996690749831032,
+     "ms_per_round": {
+      "draft": 7.46,
+      "verify": 106.93,
+      "taps": 0.73
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 24.05,
+    "client_tok_s": 24.04562811205537,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 0.4996006810106337
+   },
+   "tok_s": 46.2,
+   "client_tok_s": 46.20279124178544,
+   "tpr": 5.323,
+   "sweep_A": 57.39,
+   "sweep_C": 57.18
+  },
+  {
+   "prompt": "chat_explain",
+   "prompt_len": 73,
+   "runs": [
+    {
+     "tok_s": 34.13,
+     "client_tok_s": 34.12831013737863,
+     "tokens_per_round": 2.871,
+     "ttft_s": 0.6064263470179867,
+     "ms_per_round": {
+      "draft": 7.61,
+      "verify": 75.73,
+      "taps": 0.72
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 24.03,
+    "client_tok_s": 24.030533422633724,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 0.6096816060016863
+   },
+   "tok_s": 34.13,
+   "client_tok_s": 34.12831013737863,
+   "tpr": 2.871,
+   "sweep_A": 38.69,
+   "sweep_C": 38.54
+  },
+  {
+   "prompt": "chat_multiturn",
+   "prompt_len": 174,
+   "runs": [
+    {
+     "tok_s": 29.71,
+     "client_tok_s": 29.7129046990977,
+     "tokens_per_round": 2.231,
+     "ttft_s": 1.0972331079829019,
+     "ms_per_round": {
+      "draft": 7.13,
+      "verify": 67.2,
+      "taps": 0.71
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 24.03,
+    "client_tok_s": 24.025167206502385,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 1.0646269540011417
+   },
+   "tok_s": 29.71,
+   "client_tok_s": 29.7129046990977,
+   "tpr": 2.231,
+   "sweep_A": 32.83,
+   "sweep_C": 32.84
+  },
+  {
+   "prompt": "long_doc",
+   "prompt_len": 2842,
+   "runs": [
+    {
+     "tok_s": 36.85,
+     "client_tok_s": 36.85235209553052,
+     "tokens_per_round": 3.549,
+     "ttft_s": 12.463904453004943,
+     "ms_per_round": {
+      "draft": 7.58,
+      "verify": 87.91,
+      "taps": 0.73
+     },
+     "identical": false,
+     "finish": "length",
+     "mtp_mode": "dflash",
+     "depth": 7,
+     "confidence": 0.6
+    }
+   ],
+   "serial": {
+    "tok_s": 22.02,
+    "client_tok_s": 22.024283394907265,
+    "identical": false,
+    "finish": "length",
+    "ttft_s": 12.570506306976313
+   },
+   "tok_s": 36.85,
+   "client_tok_s": 36.85235209553052,
+   "tpr": 3.549,
+   "sweep_A": 43.44,
+   "sweep_C": 43.19
+  }
+ ],
+ "checks": [
+  {
+   "check": "warm-up request",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "code: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "code: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 104, tok/s 24.07"
+  },
+  {
+   "check": "code rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 104, tok/s 38.3, tokens/round 3.676, mode dflash d7 c0.6"
+  },
+  {
+   "check": "prose: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "prose: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 84, tok/s 24.04"
+  },
+  {
+   "check": "prose rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 84, tok/s 29.7, tokens/round 2.271, mode dflash d7 c0.6"
+  },
+  {
+   "check": "math: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "math: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 24, tok/s 24.05"
+  },
+  {
+   "check": "math rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 24, tok/s 46.2, tokens/round 5.323, mode dflash d7 c0.6"
+  },
+  {
+   "check": "chat_explain: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "chat_explain: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 119, tok/s 24.03"
+  },
+  {
+   "check": "chat_explain rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 119, tok/s 34.13, tokens/round 2.871, mode dflash d7 c0.6"
+  },
+  {
+   "check": "chat_multiturn: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "chat_multiturn: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 7, tok/s 24.03"
+  },
+  {
+   "check": "chat_multiturn rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 7, tok/s 29.71, tokens/round 2.231, mode dflash d7 c0.6"
+  },
+  {
+   "check": "long_doc: prompt ids == sweep",
+   "ok": true,
+   "detail": "first diff None"
+  },
+  {
+   "check": "long_doc: serial ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 20, tok/s 22.02"
+  },
+  {
+   "check": "long_doc rep 0: drafted ids == sweep serial",
+   "ok": false,
+   "detail": "n 512, first diff 20, tok/s 36.85, tokens/round 3.549, mode dflash d7 c0.6"
+  }
+ ],
+ "ok": false,
+ "base": "http://127.0.0.1:8890/v1",
+ "model": "GLM-5.3-EXL3-3.38bpw",
+ "started": 1791216569.2455573,
+ "wall_s": 249.1
+}

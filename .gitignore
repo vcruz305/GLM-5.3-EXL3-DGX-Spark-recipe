@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+results/
+models/
+.env
+.hf-token
+*.safetensors
+*.gguf
+# per-cluster files: copy the .example and edit
+tensorfold-four-spark-tp4/hosts
+tensorfold-four-spark-tp4/runs/
+# long-prompt inputs are rebuilt by bench/make_prompts.py (Project Gutenberg downloads)
+bench/books/
+bench/longctx_prompts.json
+benchmark-renders/

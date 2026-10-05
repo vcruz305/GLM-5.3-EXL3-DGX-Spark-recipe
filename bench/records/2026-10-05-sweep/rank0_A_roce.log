@@ -1,0 +1,196 @@
+[tf_speed] rank 0 plan A_roce_conf_sweep roce=True tiles=save:/workspace/tf_speed/tiles/tiles.json smoke=0 env: B12X_COMPILE_CACHE_DIR=/workspace/b12x/compile_cache B12X_ROCE_CACHE_DIR=/workspace/b12x/roce_cache B12X_ROCE_GID_INDEX=5 B12X_ROCE_SPIN_LIMIT=300000000 CUDA_VISIBLE_DEVICES=0 GLOO_SOCKET_IFNAME=enp1s0f0np0 NCCL_IB_HCA=rocep1s0f0 NCCL_SOCKET_IFNAME==enp1s0f0np0 TF_GLM53_DFLASH=/workspace/models/GLM-5.3-DFlash2 TF_GLM53_PROFILE_FLAG=/workspace/tf_speed/ctl/PROFILE TF_GLM53_PROMPT_ROWS=2048 TF_GLM53_ROCE=1 TF_GLM53_VERIFY_ROWS=8 TF_NCCL_LIB=/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2 TF_SPEED_ROCE=1 TF_SPEED_SMOKE_LAYERS=0 TF_SPEED_TILES=save:/workspace/tf_speed/tiles/tiles.json
+[tensorfold] Loaded layer 1/78
+[tensorfold] Loaded layer 11/78
+[tensorfold] Loaded layer 21/78
+[tensorfold] Loaded layer 31/78
+[tensorfold] Loaded layer 41/78
+[tensorfold] Loaded layer 51/78
+[tensorfold] Loaded layer 61/78
+[tensorfold] Loaded layer 71/78
+[tensorfold] Loaded layer 78/78
+[tensorfold] CUDA extension tensorfold_exl3_linear_v5 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_exl3_linear_v5/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] RoCE one-shot reduce ready (ranks bit-equal: True; equals the NCCL rank-order sum: True; windows of 3 and 32 rows)
+[tensorfold] decode-window reductions: RoCE one-shot
+[tensorfold] rank 0: took rank 0's tiles (0 of 567 linears differed)
+[tensorfold] rank 0: tuned 8 linear shapes, 5 retiled: 6144x640 (8, 4)->(4, 8), 2048x4096 (4, 4)->(1, 8), 6144x3072 (8, 4)->(4, 8), 3072x6144 (4, 4)->(1, 8), 6144x512 (8, 4)->(4, 8)
+[tensorfold] rank 0: one launch for 3 linear groups: 6144x3072 + 6144x3072 [(4, 8), (4, 8)], 2048x4096 + 2048x4096 [(8, 4), (8, 4)], 6144x512 + 6144x512 [(16, 8), (8, 8)]
+[tensorfold] rank 0: dropped page cache of 59 checkpoint files; device free 29.0 GiB before the caches
+[tensorfold] CUDA extension tensorfold_qmm_v5 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_qmm_v5/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] rank 0: DFlash2 drafter GLM-5.3-DFlash2 (block 8, taps (5, 19, 33, 47, 61, 75)) - per request "tf_mtp": "dflash"
+[tensorfold] rank 0: host anon 2.0 GiB after load, device free 19.9 of 121.7 GiB
+[tensorfold] GLM-5.3 rank 0/4: 0 layers loaded in 404s, context 32768 (fused, CUDA graphs; MTP drafts 0; token-level DSA past 2048)
+[tensorfold] rank 0: host anon 2.0 GiB, device free 19.9 GiB before warm-up
+[tensorfold] CUDA extension tensorfold_exl3_experts_v2 waits on the build lock /workspace/.cache/torch_extensions/py312_cu130/tensorfold_exl3_experts_v2/lock; if no other build is running, a killed build left it: stop this start, delete the lock and start again
+[tensorfold] rank 0: 96 decode graphs captured in 23.3s (key buckets [None, 4096, 8192, 16384, 32768, 65536])
+[tf_speed] rank 0: engine loaded in 435s
+[mem r0] after load: cuda free 16.80 GiB, torch alloc 86.92 reserved 87.85 GiB, MemAvailable 21.32 GiB
+[tf_speed] rank 0: tiles saved to /workspace/tf_speed/tiles/tiles.json (sha db409731548ce676, 567 linears)
+[tf_speed] rank 0: verify rows 8, drafter block 8, health guard round, decode reductions RoCE one-shot
+[tf_speed] prompt __warm__: 13 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Low<|user|>Hello<|assistant|><think>'
+[tf_speed] prompt code: 52 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Write a Python class implementing an LRU cache with O(1) get and put '
+[tf_speed] prompt prose: 45 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Write a vivid 500-word short story about a lighthouse keeper on a rem'
+[tf_speed] prompt math: 59 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Solve step by step: find all real solutions of x^4 - 5x^2 + 4 = 0, th'
+[tf_speed] prompt chat_explain: 73 tokens; head "[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>I'm a junior backend engineer. Can you explain how database indexes a"
+[tf_speed] prompt chat_multiturn: 174 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Max<|system|>You are a helpful assistant for a small travel agency. Be concise a'
+[tf_speed] prompt long_doc: 2842 tokens; head '[gMASK]<sop><|system|>Reasoning Effort: Max<|user|>Below is an engineering design document. Summarize its key technical '
+[tf_speed] run 0 warm __warm__/serial rep 0: n=16 tok/s=27.15 tpr=1.0 verify=None sha=015c5b17ec44ead0 OK
+[tf_speed] run 1 warm __warm__/warm-d7c0.30 rep 0: n=16 tok/s=65.59 tpr=5.0 verify=69.94 sha=015c5b17ec44ead0 OK
+[tf_speed] run 2 serial code/serial rep 0: n=512 tok/s=27.24 tpr=1.0 verify=None sha=4bdccad4d7b29264 OK
+[tf_speed] rowtime code R=1 P0=116: median 36.20 ms, guarded 36.48 ms
+[tf_speed] rowtime code R=2 P0=116: median 45.99 ms, guarded 46.77 ms
+[tf_speed] rowtime code R=3 P0=116: median 55.47 ms, guarded 55.87 ms
+[tf_speed] rowtime code R=4 P0=116: median 62.87 ms, guarded 63.50 ms
+[tf_speed] rowtime code R=5 P0=116: median 70.58 ms, guarded 71.28 ms
+[tf_speed] rowtime code R=6 P0=116: median 78.02 ms, guarded 78.32 ms
+[tf_speed] rowtime code R=7 P0=116: median 86.43 ms, guarded 87.44 ms
+[tf_speed] rowtime code R=8 P0=116: median 93.17 ms, guarded 93.15 ms
+[tf_speed] drafter block pass code: median 7.61 ms
+[tf_speed] run 3 serial prose/serial rep 0: n=512 tok/s=27.18 tpr=1.0 verify=None sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 4 serial math/serial rep 0: n=512 tok/s=27.11 tpr=1.0 verify=None sha=ab7ef1414c11ac53 OK
+[tf_speed] run 5 serial chat_explain/serial rep 0: n=512 tok/s=27.21 tpr=1.0 verify=None sha=991dae523a8675ee OK
+[tf_speed] run 6 serial chat_multiturn/serial rep 0: n=512 tok/s=27.05 tpr=1.0 verify=None sha=776da81c50f6f960 OK
+[tf_speed] run 7 serial long_doc/serial rep 0: n=512 tok/s=25.15 tpr=1.0 verify=None sha=c085e3f6f231f7d1 OK
+[tf_speed] rowtime long_doc R=1 P0=2906: median 38.76 ms, guarded 39.42 ms
+[tf_speed] rowtime long_doc R=2 P0=2906: median 51.56 ms, guarded 51.76 ms
+[tf_speed] rowtime long_doc R=3 P0=2906: median 61.54 ms, guarded 62.12 ms
+[tf_speed] rowtime long_doc R=4 P0=2906: median 69.00 ms, guarded 70.20 ms
+[tf_speed] rowtime long_doc R=5 P0=2906: median 77.40 ms, guarded 78.04 ms
+[tf_speed] rowtime long_doc R=6 P0=2906: median 84.72 ms, guarded 85.28 ms
+[tf_speed] rowtime long_doc R=7 P0=2906: median 93.15 ms, guarded 93.62 ms
+[tf_speed] rowtime long_doc R=8 P0=2906: median 103.15 ms, guarded 103.98 ms
+[tf_speed] drafter block pass long_doc: median 7.83 ms
+[tf_speed] run 8 config code/d7c0.30 rep 0: n=512 tok/s=39.21 tpr=3.43 verify=78.95 sha=4bdccad4d7b29264 OK
+[tf_speed] run 9 config prose/d7c0.30 rep 0: n=512 tok/s=33.83 tpr=2.634 verify=69.71 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 10 config math/d7c0.30 rep 0: n=512 tok/s=55.65 tpr=5.742 verify=94.9 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 11 config chat_explain/d7c0.30 rep 0: n=512 tok/s=36.74 tpr=3.06 verify=75.05 sha=991dae523a8675ee OK
+[tf_speed] run 12 config chat_multiturn/d7c0.30 rep 0: n=512 tok/s=31.21 tpr=2.281 verify=64.74 sha=776da81c50f6f960 OK
+[tf_speed] run 13 config long_doc/d7c0.30 rep 0: n=512 tok/s=40.55 tpr=3.842 verify=85.87 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 14 config code/d7c0.50 rep 0: n=512 tok/s=40.28 tpr=3.194 verify=70.82 sha=4bdccad4d7b29264 OK
+[tf_speed] run 15 config prose/d7c0.50 rep 0: n=512 tok/s=35.55 tpr=2.445 verify=60.24 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 16 config math/d7c0.50 rep 0: n=512 tok/s=57.18 tpr=5.495 verify=87.84 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 17 config chat_explain/d7c0.50 rep 0: n=512 tok/s=38.86 tpr=2.839 verify=64.99 sha=991dae523a8675ee OK
+[tf_speed] run 18 config chat_multiturn/d7c0.50 rep 0: n=512 tok/s=32.86 tpr=2.212 verify=58.99 sha=776da81c50f6f960 OK
+[tf_speed] run 19 config long_doc/d7c0.50 rep 0: n=512 tok/s=41.43 tpr=3.624 verify=78.95 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 20 config code/d7c0.40 rep 0: n=512 tok/s=39.81 tpr=3.297 verify=74.54 sha=4bdccad4d7b29264 OK
+[tf_speed] run 21 config prose/d7c0.40 rep 0: n=512 tok/s=34.23 tpr=2.517 verify=64.93 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 22 config math/d7c0.40 rep 0: n=512 tok/s=56.43 tpr=5.678 verify=92.08 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 23 config chat_explain/d7c0.40 rep 0: n=512 tok/s=38.3 tpr=2.971 verify=69.35 sha=991dae523a8675ee OK
+[tf_speed] run 24 config chat_multiturn/d7c0.40 rep 0: n=512 tok/s=32.39 tpr=2.261 verify=61.64 sha=776da81c50f6f960 OK
+[tf_speed] run 25 config long_doc/d7c0.40 rep 0: n=512 tok/s=41.57 tpr=3.757 verify=82.04 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 26 config code/d7c0.60 rep 0: n=512 tok/s=40.58 tpr=3.078 verify=67.7 sha=4bdccad4d7b29264 OK
+[tf_speed] run 27 config prose/d7c0.60 rep 0: n=512 tok/s=35.61 tpr=2.355 verify=58.11 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 28 config math/d7c0.60 rep 0: n=512 tok/s=57.08 tpr=5.379 verify=85.78 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 29 config chat_explain/d7c0.60 rep 0: n=512 tok/s=38.69 tpr=2.733 verify=62.57 sha=991dae523a8675ee OK
+[tf_speed] run 30 config chat_multiturn/d7c0.60 rep 0: n=512 tok/s=32.83 tpr=2.156 verify=57.26 sha=776da81c50f6f960 OK
+[tf_speed] run 31 config long_doc/d7c0.60 rep 0: n=512 tok/s=43.49 tpr=3.599 verify=74.32 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 32 config code/d7c0.75 rep 0: n=512 tok/s=40.2 tpr=2.839 verify=62.51 sha=4bdccad4d7b29264 OK
+[tf_speed] run 33 config prose/d7c0.75 rep 0: n=512 tok/s=35.28 tpr=2.251 verify=55.66 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 34 config math/d7c0.75 rep 0: n=512 tok/s=57.42 tpr=5.01 verify=79.1 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 35 config chat_explain/d7c0.75 rep 0: n=512 tok/s=37.98 tpr=2.555 verify=59.08 sha=991dae523a8675ee OK
+[tf_speed] run 36 config chat_multiturn/d7c0.75 rep 0: n=512 tok/s=32.77 tpr=2.052 verify=54.54 sha=776da81c50f6f960 OK
+[tf_speed] run 37 config long_doc/d7c0.75 rep 0: n=512 tok/s=42.65 tpr=3.34 verify=69.68 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 38 config code/d5c0.50 rep 0: n=512 tok/s=39.9 tpr=3.06 verify=68.32 sha=4bdccad4d7b29264 OK
+[tf_speed] run 39 config prose/d5c0.50 rep 0: n=512 tok/s=35.37 tpr=2.399 verify=59.36 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 40 config math/d5c0.50 rep 0: n=512 tok/s=54.25 tpr=4.776 verify=79.83 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 41 config chat_explain/d5c0.50 rep 0: n=512 tok/s=37.82 tpr=2.762 verify=64.66 sha=991dae523a8675ee OK
+[tf_speed] run 42 config chat_multiturn/d5c0.50 rep 0: n=512 tok/s=32.99 tpr=2.184 verify=58.18 sha=776da81c50f6f960 OK
+[tf_speed] run 43 config long_doc/d5c0.50 rep 0: n=512 tok/s=41.89 tpr=3.476 verify=74.63 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 44 config code/d7c0.30 rep 1: n=512 tok/s=39.46 tpr=3.43 verify=78.7 sha=4bdccad4d7b29264 OK
+[tf_speed] run 45 config prose/d7c0.30 rep 1: n=512 tok/s=34.0 tpr=2.634 verify=69.46 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 46 config math/d7c0.30 rep 1: n=512 tok/s=55.78 tpr=5.742 verify=94.8 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 47 config chat_explain/d7c0.30 rep 1: n=512 tok/s=36.79 tpr=3.06 verify=75.09 sha=991dae523a8675ee OK
+[tf_speed] run 48 config chat_multiturn/d7c0.30 rep 1: n=512 tok/s=31.32 tpr=2.281 verify=64.59 sha=776da81c50f6f960 OK
+[tf_speed] run 49 config long_doc/d7c0.30 rep 1: n=512 tok/s=40.41 tpr=3.842 verify=86.02 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 50 config code/d7c0.50 rep 1: n=512 tok/s=40.16 tpr=3.194 verify=71.09 sha=4bdccad4d7b29264 OK
+[tf_speed] run 51 config prose/d7c0.50 rep 1: n=512 tok/s=35.64 tpr=2.445 verify=60.32 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 52 config math/d7c0.50 rep 1: n=512 tok/s=57.15 tpr=5.495 verify=88.0 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 53 config chat_explain/d7c0.50 rep 1: n=512 tok/s=38.62 tpr=2.839 verify=65.29 sha=991dae523a8675ee OK
+[tf_speed] run 54 config chat_multiturn/d7c0.50 rep 1: n=512 tok/s=32.75 tpr=2.212 verify=59.12 sha=776da81c50f6f960 OK
+[tf_speed] run 55 config long_doc/d7c0.50 rep 1: n=512 tok/s=41.49 tpr=3.624 verify=78.89 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 56 config code/d7c0.40 rep 1: n=512 tok/s=39.67 tpr=3.297 verify=74.62 sha=4bdccad4d7b29264 OK
+[tf_speed] run 57 config prose/d7c0.40 rep 1: n=512 tok/s=34.56 tpr=2.517 verify=64.57 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 58 config math/d7c0.40 rep 1: n=512 tok/s=56.83 tpr=5.678 verify=91.78 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 59 config chat_explain/d7c0.40 rep 1: n=512 tok/s=38.14 tpr=2.971 verify=69.47 sha=991dae523a8675ee OK
+[tf_speed] run 60 config chat_multiturn/d7c0.40 rep 1: n=512 tok/s=32.21 tpr=2.261 verify=61.79 sha=776da81c50f6f960 OK
+[tf_speed] run 61 config long_doc/d7c0.40 rep 1: n=512 tok/s=41.56 tpr=3.757 verify=82.1 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 62 config code/d7c0.60 rep 1: n=512 tok/s=40.62 tpr=3.078 verify=67.54 sha=4bdccad4d7b29264 OK
+[tf_speed] run 63 config prose/d7c0.60 rep 1: n=512 tok/s=35.31 tpr=2.355 verify=58.35 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 64 config math/d7c0.60 rep 1: n=512 tok/s=57.39 tpr=5.379 verify=85.61 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 65 config chat_explain/d7c0.60 rep 1: n=512 tok/s=38.51 tpr=2.733 verify=62.66 sha=991dae523a8675ee OK
+[tf_speed] run 66 config chat_multiturn/d7c0.60 rep 1: n=512 tok/s=32.55 tpr=2.156 verify=57.57 sha=776da81c50f6f960 OK
+[tf_speed] run 67 config long_doc/d7c0.60 rep 1: n=512 tok/s=43.44 tpr=3.599 verify=74.5 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 68 config code/d7c0.75 rep 1: n=512 tok/s=39.9 tpr=2.839 verify=62.92 sha=4bdccad4d7b29264 OK
+[tf_speed] run 69 config prose/d7c0.75 rep 1: n=512 tok/s=35.16 tpr=2.251 verify=55.85 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 70 config math/d7c0.75 rep 1: n=512 tok/s=57.43 tpr=5.01 verify=79.21 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 71 config chat_explain/d7c0.75 rep 1: n=512 tok/s=37.83 tpr=2.555 verify=59.23 sha=991dae523a8675ee OK
+[tf_speed] run 72 config chat_multiturn/d7c0.75 rep 1: n=512 tok/s=32.81 tpr=2.052 verify=54.61 sha=776da81c50f6f960 OK
+[tf_speed] run 73 config long_doc/d7c0.75 rep 1: n=512 tok/s=43.0 tpr=3.34 verify=69.46 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 74 config code/d5c0.50 rep 1: n=512 tok/s=39.72 tpr=3.06 verify=68.64 sha=4bdccad4d7b29264 OK
+[tf_speed] run 75 config prose/d5c0.50 rep 1: n=512 tok/s=35.55 tpr=2.399 verify=59.45 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 76 config math/d5c0.50 rep 1: n=512 tok/s=54.28 tpr=4.776 verify=80.0 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 77 config chat_explain/d5c0.50 rep 1: n=512 tok/s=37.9 tpr=2.762 verify=64.63 sha=991dae523a8675ee OK
+[tf_speed] run 78 config chat_multiturn/d5c0.50 rep 1: n=512 tok/s=32.91 tpr=2.184 verify=58.33 sha=776da81c50f6f960 OK
+[tf_speed] run 79 config long_doc/d5c0.50 rep 1: n=512 tok/s=41.21 tpr=3.476 verify=75.3 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 80 config code/d7c0.30 rep 2: n=512 tok/s=39.17 tpr=3.43 verify=78.97 sha=4bdccad4d7b29264 OK
+[tf_speed] run 81 config prose/d7c0.30 rep 2: n=512 tok/s=33.4 tpr=2.634 verify=70.09 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 82 config math/d7c0.30 rep 2: n=512 tok/s=55.26 tpr=5.742 verify=95.42 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 83 config chat_explain/d7c0.30 rep 2: n=512 tok/s=36.42 tpr=3.06 verify=75.52 sha=991dae523a8675ee OK
+[tf_speed] run 84 config chat_multiturn/d7c0.30 rep 2: n=512 tok/s=31.19 tpr=2.281 verify=64.79 sha=776da81c50f6f960 OK
+[tf_speed] run 85 config long_doc/d7c0.30 rep 2: n=512 tok/s=40.49 tpr=3.842 verify=86.04 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 86 config code/d7c0.50 rep 2: n=512 tok/s=40.2 tpr=3.194 verify=71.14 sha=4bdccad4d7b29264 OK
+[tf_speed] run 87 config prose/d7c0.50 rep 2: n=512 tok/s=35.53 tpr=2.445 verify=60.48 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 88 config math/d7c0.50 rep 2: n=512 tok/s=56.92 tpr=5.495 verify=88.2 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 89 config chat_explain/d7c0.50 rep 2: n=512 tok/s=38.67 tpr=2.839 verify=65.32 sha=991dae523a8675ee OK
+[tf_speed] run 90 config chat_multiturn/d7c0.50 rep 2: n=512 tok/s=33.15 tpr=2.212 verify=58.79 sha=776da81c50f6f960 OK
+[tf_speed] run 91 config long_doc/d7c0.50 rep 2: n=512 tok/s=41.47 tpr=3.624 verify=78.89 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 92 config code/d7c0.40 rep 2: n=512 tok/s=40.06 tpr=3.297 verify=74.3 sha=4bdccad4d7b29264 OK
+[tf_speed] run 93 config prose/d7c0.40 rep 2: n=512 tok/s=34.31 tpr=2.517 verify=64.86 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 94 config math/d7c0.40 rep 2: n=512 tok/s=56.68 tpr=5.678 verify=91.85 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 95 config chat_explain/d7c0.40 rep 2: n=512 tok/s=38.37 tpr=2.971 verify=69.27 sha=991dae523a8675ee OK
+[tf_speed] run 96 config chat_multiturn/d7c0.40 rep 2: n=512 tok/s=32.17 tpr=2.261 verify=61.9 sha=776da81c50f6f960 OK
+[tf_speed] run 97 config long_doc/d7c0.40 rep 2: n=512 tok/s=41.57 tpr=3.757 verify=82.1 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 98 config code/d7c0.60 rep 2: n=512 tok/s=40.66 tpr=3.078 verify=67.64 sha=4bdccad4d7b29264 OK
+[tf_speed] run 99 config prose/d7c0.60 rep 2: n=512 tok/s=35.58 tpr=2.355 verify=58.19 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 100 config math/d7c0.60 rep 2: n=512 tok/s=57.43 tpr=5.379 verify=85.61 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 101 config chat_explain/d7c0.60 rep 2: n=512 tok/s=38.72 tpr=2.733 verify=62.51 sha=991dae523a8675ee OK
+[tf_speed] run 102 config chat_multiturn/d7c0.60 rep 2: n=512 tok/s=33.04 tpr=2.156 verify=57.24 sha=776da81c50f6f960 OK
+[tf_speed] run 103 config long_doc/d7c0.60 rep 2: n=512 tok/s=43.24 tpr=3.599 verify=74.65 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 104 config code/d7c0.75 rep 2: n=512 tok/s=39.94 tpr=2.839 verify=62.83 sha=4bdccad4d7b29264 OK
+[tf_speed] run 105 config prose/d7c0.75 rep 2: n=512 tok/s=35.32 tpr=2.251 verify=55.73 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 106 config math/d7c0.75 rep 2: n=512 tok/s=57.23 tpr=5.01 verify=79.35 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 107 config chat_explain/d7c0.75 rep 2: n=512 tok/s=38.01 tpr=2.555 verify=59.12 sha=991dae523a8675ee OK
+[tf_speed] run 108 config chat_multiturn/d7c0.75 rep 2: n=512 tok/s=32.41 tpr=2.052 verify=54.95 sha=776da81c50f6f960 OK
+[tf_speed] run 109 config long_doc/d7c0.75 rep 2: n=512 tok/s=42.87 tpr=3.34 verify=69.66 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 110 config code/d5c0.50 rep 2: n=512 tok/s=39.64 tpr=3.06 verify=69.04 sha=4bdccad4d7b29264 OK
+[tf_speed] run 111 config prose/d5c0.50 rep 2: n=512 tok/s=35.17 tpr=2.399 verify=59.91 sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 112 config math/d5c0.50 rep 2: n=512 tok/s=53.27 tpr=4.776 verify=81.02 sha=ab7ef1414c11ac53 OK
+[tf_speed] run 113 config chat_explain/d5c0.50 rep 2: n=512 tok/s=37.27 tpr=2.762 verify=65.59 sha=991dae523a8675ee OK
+[tf_speed] run 114 config chat_multiturn/d5c0.50 rep 2: n=512 tok/s=32.08 tpr=2.184 verify=59.28 sha=776da81c50f6f960 OK
+[tf_speed] run 115 config long_doc/d5c0.50 rep 2: n=512 tok/s=41.74 tpr=3.476 verify=74.91 sha=c085e3f6f231f7d1 OK
+[tf_speed] run 116 bookend code/serial rep 0: n=512 tok/s=27.05 tpr=1.0 verify=None sha=4bdccad4d7b29264 OK
+[tf_speed] run 117 bookend prose/serial rep 0: n=512 tok/s=27.1 tpr=1.0 verify=None sha=ad50c3af6ffc1f7b OK
+[tf_speed] run 118 bookend math/serial rep 0: n=512 tok/s=27.08 tpr=1.0 verify=None sha=ab7ef1414c11ac53 OK
+[tf_speed] run 119 bookend chat_explain/serial rep 0: n=512 tok/s=27.23 tpr=1.0 verify=None sha=991dae523a8675ee OK
+[tf_speed] run 120 bookend chat_multiturn/serial rep 0: n=512 tok/s=26.96 tpr=1.0 verify=None sha=776da81c50f6f960 OK
+[tf_speed] run 121 bookend long_doc/serial rep 0: n=512 tok/s=25.04 tpr=1.0 verify=None sha=c085e3f6f231f7d1 OK
+USDT:2026-10-05 10:50:49 1994433:1994433 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-10-05 10:50:49 1994433:1994433 SyncActivityProfilerHandler.cpp:46] profiler_stop
+[tf_speed] run 122 profile code/serial rep 0: n=512 tok/s=25.46 tpr=1.0 verify=None sha=4bdccad4d7b29264 OK
+USDT:2026-10-05 10:51:09 1994433:1994433 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-10-05 10:51:10 1994433:1994433 SyncActivityProfilerHandler.cpp:46] profiler_stop
+[tf_speed] run 123 profile code/prof-d7c0.30 rep 0: n=512 tok/s=37.27 tpr=3.43 verify=79.71 sha=4bdccad4d7b29264 OK
+USDT:2026-10-05 10:51:23 1994433:1994433 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-10-05 10:51:24 1994433:1994433 SyncActivityProfilerHandler.cpp:46] profiler_stop
+[tf_speed] run 124 profile prose/prof-d7c0.30 rep 0: n=512 tok/s=32.01 tpr=2.634 verify=70.55 sha=ad50c3af6ffc1f7b OK
+### A_roce_conf_sweep (RoCE, tiles save:/workspace/tf_speed/tiles/tiles.json)
+| config | code tok/s (tok/round, verify ms) | prose tok/s (tok/round, verify ms) | math tok/s (tok/round, verify ms) | chat_explain tok/s (tok/round, verify ms) | chat_multiturn tok/s (tok/round, verify ms) | long_doc tok/s (tok/round, verify ms) | mean core3 | mean all | exact |
+|---|---|---|---|---|---|---|---|---|---|
+| serial | 27.14 (1.00, -) | 27.14 (1.00, -) | 27.09 (1.00, -) | 27.22 (1.00, -) | 27.01 (1.00, -) | 25.09 (1.00, -) | 27.13 | 26.78 | yes |
+| d7c0.30 | 39.21 (3.43, 79.0) | 33.83 (2.63, 69.7) | 55.65 (5.74, 94.9) | 36.74 (3.06, 75.1) | 31.21 (2.28, 64.7) | 40.49 (3.84, 86.0) | 42.90 | 39.52 | yes |
+| d7c0.50 | 40.20 (3.19, 71.1) | 35.55 (2.44, 60.3) | 57.15 (5.50, 88.0) | 38.67 (2.84, 65.3) | 32.86 (2.21, 59.0) | 41.47 (3.62, 78.9) | 44.30 | 40.98 | yes |
+| d7c0.40 | 39.81 (3.30, 74.5) | 34.31 (2.52, 64.9) | 56.68 (5.68, 91.8) | 38.30 (2.97, 69.3) | 32.21 (2.26, 61.8) | 41.57 (3.76, 82.1) | 43.60 | 40.48 | yes |
+| d7c0.60 | 40.62 (3.08, 67.6) | 35.58 (2.35, 58.2) | 57.39 (5.38, 85.6) | 38.69 (2.73, 62.6) | 32.83 (2.16, 57.3) | 43.44 (3.60, 74.5) | 44.53 | 41.42 | yes |
+| d7c0.75 | 39.94 (2.84, 62.8) | 35.28 (2.25, 55.7) | 57.42 (5.01, 79.2) | 37.98 (2.56, 59.1) | 32.77 (2.05, 54.6) | 42.87 (3.34, 69.7) | 44.21 | 41.04 | yes |
+| d5c0.50 | 39.72 (3.06, 68.6) | 35.37 (2.40, 59.5) | 54.25 (4.78, 80.0) | 37.82 (2.76, 64.7) | 32.91 (2.18, 58.3) | 41.74 (3.48, 74.9) | 43.11 | 40.30 | yes |
+[tf_speed] ALL DONE rank 0
+[tf_speed] EXIT 0

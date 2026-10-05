@@ -1,0 +1,57 @@
+{
+  "title": "GLM-5.3 EXL3 3.38 bpw on four DGX Sparks: TensorFold TP=4 + b12x RoCE + DFlash2",
+  "measured": "2026-10-05",
+  "hardware": "4x NVIDIA DGX Spark (GB10, 128 GB unified memory), one ConnectX-7 RoCE rail",
+  "runtime": {
+    "tensorfold": "vcruz305/TensorFold glm53-tp4-spark 757a851 (ashhart/TensorFold PR #159 @ 689596d + 2 loader fixes)",
+    "b12x": "local-inference-lab/b12x b58f34e (RoCE one-shot reductions)",
+    "drafter": "incoai/GLM-5.3-DFlash2 425aa61, depth 7, confidence 0.60",
+    "pack": "vcruz305/GLM-5.3-EXL3-3.38bpw cc64e77 + BF16 lm_head from zai-org/GLM-5.3 aca966e",
+    "tiles": "tiles.json sha256 db409731..."
+  },
+  "sources": {
+    "serve160k": "/v1 server, --context 163840, TF_GLM53_DCP=1 (profile fast-160k); bench/longctx_run.py; bench/records/2026-10-05-serve-160k/",
+    "serve262k": "/v1 server, --context 262144, TF_GLM53_DCP=4 (profile dcp4-262k); bench/longctx_run.py; bench/records/2026-10-05-serve-262k-dcp4/",
+    "sweep": "in-process speed sweep, context 32768, median of 3; bench/records/2026-10-05-sweep/",
+    "sixcat": "SixCat v0.7.0 speed suite, strict, thinking off, client-side; synthetic decode prompt = a ceiling, not user-facing speed"
+  },
+  "decode_per_prompt": {
+    "unit": "tok/s",
+    "conditions": "greedy, 512 new tokens, thinking on, one run per arm",
+    "source": "serve160k",
+    "prompts": [
+      {"name": "code", "prompt_tokens": 52, "dflash2": 40.64, "serial": 27.07, "tokens_per_round": 3.08, "ids_equal": true},
+      {"name": "prose", "prompt_tokens": 45, "dflash2": 35.71, "serial": 27.17, "tokens_per_round": 2.36, "ids_equal": true},
+      {"name": "math", "prompt_tokens": 59, "dflash2": 56.50, "serial": 26.84, "tokens_per_round": 5.38, "ids_equal": true},
+      {"name": "chat_explain", "prompt_tokens": 73, "dflash2": 37.67, "serial": 26.16, "tokens_per_round": 2.73, "ids_equal": true},
+      {"name": "chat_multiturn", "prompt_tokens": 174, "dflash2": 32.57, "serial": 26.68, "tokens_per_round": 2.16, "ids_equal": true},
+      {"name": "long_doc", "prompt_tokens": 2842, "dflash2": 43.54, "serial": 24.83, "tokens_per_round": 3.60, "ids_equal": true}
+    ],
+    "mean_dflash2": 41.11,
+    "mean_serial": 26.46
+  },
+  "long_prompts": {
+    "source": "serve160k",
+    "conditions": "thinking off, greedy, 512 new tokens; TTFT client-observed",
+    "rows": [
+      {"name": "Moby-Dick, 127,544 tokens", "dflash2_tok_s": 33.30, "serial_tok_s": 21.76, "ttft_s": 511.23, "prefill_tok_s": 249.5, "ids_equal": true},
+      {"name": "War and Peace, 162,544 tokens", "dflash2_tok_s": null, "serial_tok_s": 20.82, "ttft_s": 639.04, "prefill_tok_s": 254.4, "ids_equal": null, "note": "drafted arm not run (stopped)"}
+    ]
+  },
+  "profiles": [
+    {"name": "fast-160k (default)", "context": 163840, "dflash2_mean": 41.11, "serial_mean": 26.46, "sixcat_decode_p50": 69.19, "sixcat_prefill_p50": 313.4, "min_mem_available_gib": 4.86, "status": "measured"},
+    {"name": "dcp4-262k", "context": 262144, "dflash2_mean": 35.91, "serial_mean": 23.67, "sixcat_decode_p50": 57.08, "sixcat_prefill_p50": 232.2, "min_mem_available_gib": 14.79, "status": "measured"},
+    {"name": "int4-262k", "context": 262144, "dflash2_mean": null, "serial_mean": null, "sixcat_decode_p50": null, "sixcat_prefill_p50": null, "min_mem_available_gib": null, "status": "pending validation"}
+  ],
+  "sweep": {
+    "source": "sweep",
+    "rows": [
+      {"name": "DFlash2 d7/c0.60, RoCE, mean of 6", "tok_s": 41.42},
+      {"name": "DFlash2 d7/c0.60, RoCE re-boot, mean of 6", "tok_s": 41.24},
+      {"name": "DFlash2 d7/c0.60, NCCL, mean of 6", "tok_s": 37.07},
+      {"name": "serial, RoCE, code/prose/math", "tok_s": 27.13},
+      {"name": "serial, NCCL, code/prose/math", "tok_s": 24.15}
+    ],
+    "exactness": "283 drafted runs, 0 differences from serial"
+  }
+}

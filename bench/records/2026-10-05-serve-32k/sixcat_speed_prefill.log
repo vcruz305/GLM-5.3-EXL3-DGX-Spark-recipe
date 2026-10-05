@@ -1,0 +1,41 @@
+
+=== PREFILL PROFILE ===
+workload: prompt_words=2048 max_tokens=32
+purpose: long prompt + short generation to expose prompt-ingestion speed
+CONCURRENCY CURVE (unscored synthetic probes)
+   C      ok  usable    agg t/s     req/s   TTFT p95    dec p50
+----------------------------------------------------------------------------
+   1 4/4         yes       3.80      0.12   7891.7ms      59.18
+   2 4/4         yes       3.94      0.12  15696.8ms      61.18
+   4 6/8          NO       3.68      0.11  35907.4ms      59.38
+----------------------------------------------------------------------------
+aggregate output tps = level-wall throughput; includes prefill, queueing, and failure wall time
+max usable concurrency: 2 (min success=95%)
+recommended concurrency: 1 (usable peak=2, confidence=low)
+selection: smallest concurrency reaching at least 90% of measured peak aggregate_output_tps; lower concurrency wins near-ties to reduce latency and KV pressure
+excluded from knee for failures: C=4
+
+SPEED CONFIRMATION @ concurrency=1 (32/32 successful)
+aggregate output tps (includes prefill/queue): 3.80 tok/s
+request rate: 0.12 req/s
+DECODE — per-stream sustained generation:
+  p50=59.45  p95=61.41  max=62.13 tok/s
+  best-sustained decode (p90): 61.24 tok/s
+PREFILL — client-observed effective prompt ingestion:
+  p50=313.51  p95=319.75  max=321.12 tok/s (includes network/queue)
+client TTFT: p50=7888.1ms p95=8031.3ms p99=8040.5ms
+E2E latency: p50=8422.2ms p95=8543.8ms p99=8564.8ms
+TPOT: p50=16.8ms p95=19.0ms p99=19.3ms
+server prefill: p5=n/a p50=n/a tok/s
+server decode: p5=n/a p50=n/a tok/s
+server metrics: unavailable for this route — the route exposes /v1/models but no llama.cpp /props and returned no per-request provider timing metrics
+NOTE: p99 has <100 request samples; use --samples 100+ for stronger tail-latency evidence.
+
+SIXCAT SPEED SUITE — workload-specific headlines
+----------------------------------------------------------------------------
+PREFILL (single-stream C=1): p50=315.56 p95=317.27 max=317.32 effective tok/s
+PREFILL serving knee: aggregate=3.80 tok/s @ C=1 (includes decode/queue)
+----------------------------------------------------------------------------
+Decode, balanced, and prefill are intentionally separate workloads; do not compare their aggregate TPS as the same metric.
+
+wrote <client>/tf_serve\sixcat\speed_ctx32k_prefill_20261005_084149.json

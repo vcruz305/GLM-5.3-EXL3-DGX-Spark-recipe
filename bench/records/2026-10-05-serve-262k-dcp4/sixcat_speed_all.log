@@ -1,0 +1,83 @@
+
+=== DECODE PROFILE ===
+workload: prompt_words=32 max_tokens=512
+purpose: short prompt + long generation to expose sustained decode speed
+CONCURRENCY CURVE (unscored synthetic probes)
+   C      ok  usable    agg t/s     req/s   TTFT p95    dec p50
+----------------------------------------------------------------------------
+   1 4/4         yes      51.17      0.10   1110.4ms      57.56
+   2 4/4         yes      51.82      0.10  10722.0ms      57.07
+   4 3/8          NO      39.52      0.08  19407.5ms      57.24
+----------------------------------------------------------------------------
+aggregate output tps = level-wall throughput; includes prefill, queueing, and failure wall time
+max usable concurrency: 2 (min success=95%)
+recommended concurrency: 1 (usable peak=2, confidence=low)
+selection: smallest concurrency reaching at least 90% of measured peak aggregate_output_tps; lower concurrency wins near-ties to reduce latency and KV pressure
+excluded from knee for failures: C=4
+
+SPEED CONFIRMATION @ concurrency=1 (32/32 successful)
+aggregate output tps (includes prefill/queue): 46.31 tok/s
+request rate: 0.09 req/s
+DECODE — per-stream sustained generation:
+  p50=57.08  p95=58.07  max=58.32 tok/s
+  best-sustained decode (p90): 57.90 tok/s
+PREFILL — client-observed effective prompt ingestion:
+  p50=95.41  p95=119.63  max=120.03 tok/s (includes network/queue)
+client TTFT: p50=1288.0ms p95=2328.5ms p99=3241.4ms
+E2E latency: p50=10237.8ms p95=16440.3ms p99=23185.6ms
+TPOT: p50=17.5ms p95=27.4ms p99=39.3ms
+server prefill: p5=n/a p50=n/a tok/s
+server decode: p5=n/a p50=n/a tok/s
+server metrics: unavailable for this route — the route exposes /v1/models but no llama.cpp /props and returned no per-request provider timing metrics
+NOTE: p99 has <100 request samples; use --samples 100+ for stronger tail-latency evidence.
+
+=== BALANCED PROFILE ===
+workload: prompt_words=256 max_tokens=128
+purpose: mixed prompt/generation workload for realistic serving throughput
+CONCURRENCY CURVE (unscored synthetic probes)
+   C      ok  usable    agg t/s     req/s   TTFT p95    dec p50
+----------------------------------------------------------------------------
+   1 4/4         yes      27.78      0.22   2405.6ms      57.26
+   2 4/4         yes      29.80      0.23   6507.1ms      57.27
+   4 8/8         yes      29.67      0.23  27766.8ms      56.71
+   8 4/16         NO      10.77      0.08  17807.7ms     319.32
+----------------------------------------------------------------------------
+aggregate output tps = level-wall throughput; includes prefill, queueing, and failure wall time
+max usable concurrency: 4 (min success=95%)
+recommended concurrency: 1 (usable peak=2, confidence=high)
+selection: smallest concurrency reaching at least 90% of measured peak aggregate_output_tps; lower concurrency wins near-ties to reduce latency and KV pressure
+excluded from knee for failures: C=8
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "<sixcat>\sixcat\__main__.py", line 640, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "<sixcat>\sixcat\__main__.py", line 634, in main
+    return _dispatch(argv)
+           ^^^^^^^^^^^^^^^
+  File "<sixcat>\sixcat\__main__.py", line 619, in _dispatch
+    return speed_main(args[1:])
+           ^^^^^^^^^^^^^^^^^^^^
+  File "<sixcat>\sixcat\perf.py", line 1169, in main
+    confirmation = confirmation_run(
+                   ^^^^^^^^^^^^^^^^^
+  File "<sixcat>\sixcat\perf.py", line 663, in confirmation_run
+    result = run_level(
+             ^^^^^^^^^^
+  File "<sixcat>\sixcat\perf.py", line 481, in run_level
+    return asyncio.run(
+           ^^^^^^^^^^^^
+  File "C:\Python312\Lib\asyncio\runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\asyncio\base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "<sixcat>\sixcat\perf.py", line 431, in _run_level_async
+    raise TimeoutError("speed probe deadline reached")
+TimeoutError: speed probe deadline reached
+EXIT=1

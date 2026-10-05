@@ -1,0 +1,17 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.env text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.log text eol=lf
+*.txt text eol=lf
+*.html text eol=lf
+*.example text eol=lf
+*.diff -text
+*.patch -text
+*.png binary
+# the pinned tile table is hashed byte for byte (no trailing newline): never normalize it
+tensorfold-four-spark-tp4/tiles/tiles.json -text

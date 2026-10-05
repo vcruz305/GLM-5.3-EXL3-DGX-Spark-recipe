@@ -1,0 +1,36 @@
+# derived from memwatch_rank{0..3}.log: per watchdog session, the start event, a summary of its 1 s samples (min MemAvailable GiB, max swap growth kB, sample count) and its stop / violation events. The log accumulates every session that node ran that day; the last session is this record's.
+{"rank": 0, "event": "start", "t": 1791213655.417829, "host": "spark-0", "central": true, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 243328, "mem_available_kb": 123749424, "pid": 2362177}
+{"rank": 0, "session_summary": {"n": 1305, "min_avail_gib": 21.03, "max_swap_delta_kb": 0}}
+{"rank": 0, "event": "stop", "t": 1791215407.674519, "min_avail_gib": 21.03, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 0, "event": "start", "t": 1791215468.8633358, "host": "spark-0", "central": true, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 243320, "mem_available_kb": 123731328, "pid": 2380990}
+{"rank": 0, "t": 1791215894.3, "avail_gib": 117.98, "swap_used_mib": 237.6, "swap_delta_kb": 0, "min_avail_gib": 33.53, "max_swap_delta_kb": 0, "tf_procs": 0, "VIOLATION": ["peer 10.0.0.12 violation"], "PEER_VIOLATION": "10.0.0.12", "split": {"dead": ["local", "10.0.0.11", "10.0.0.13"], "live": ["10.0.0.12"], "for_s": 0.0}, "peers": {"local": 0, "10.0.0.11": 0, "10.0.0.12": 1, "10.0.0.13": 0}}
+{"rank": 0, "session_summary": {"n": 388, "min_avail_gib": 33.53, "max_swap_delta_kb": 0}}
+{"rank": 0, "event": "stop", "t": 1791215980.6000588, "min_avail_gib": 33.53, "max_swap_delta_kb": 0, "tripped": true}
+{"rank": 0, "event": "start", "t": 1791216039.72375, "host": "spark-0", "central": true, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 243320, "mem_available_kb": 123736572, "pid": 2389322}
+{"rank": 0, "session_summary": {"n": 1714, "min_avail_gib": 16.1, "max_swap_delta_kb": 0}, "note": "no stop event in the fetched log"}
+{"rank": 1, "event": "start", "t": 1791213645.696592, "host": "spark-1", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 259040, "mem_available_kb": 120961560, "pid": 2342165}
+{"rank": 1, "session_summary": {"n": 1726, "min_avail_gib": 16.9, "max_swap_delta_kb": 0}}
+{"rank": 1, "event": "stop", "t": 1791215411.4485612, "min_avail_gib": 16.9, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 1, "event": "start", "t": 1791215458.934034, "host": "spark-1", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 259020, "mem_available_kb": 120962948, "pid": 2466278}
+{"rank": 1, "session_summary": {"n": 513, "min_avail_gib": 30.82, "max_swap_delta_kb": 0}}
+{"rank": 1, "event": "stop", "t": 1791215982.0401413, "min_avail_gib": 30.82, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 1, "event": "start", "t": 1791216030.0430837, "host": "spark-1", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 258936, "mem_available_kb": 120951084, "pid": 2507663}
+{"rank": 1, "session_summary": {"n": 2269, "min_avail_gib": 14.79, "max_swap_delta_kb": 0}, "note": "no stop event in the fetched log"}
+{"rank": 2, "event": "start", "t": 1791213648.8954957, "host": "spark-2", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 231988, "mem_available_kb": 122896328, "pid": 3426565}
+{"rank": 2, "session_summary": {"n": 1728, "min_avail_gib": 18.77, "max_swap_delta_kb": 0}}
+{"rank": 2, "event": "stop", "t": 1791215414.0301683, "min_avail_gib": 18.77, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 2, "event": "start", "t": 1791215462.3396683, "host": "spark-2", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 231980, "mem_available_kb": 122855892, "pid": 3536827}
+{"rank": 2, "t": 1791215894.2, "avail_gib": 4.88, "swap_used_mib": 226.5, "swap_delta_kb": 4, "min_avail_gib": 4.6, "max_swap_delta_kb": 4, "tf_procs": 1, "VIOLATION": ["swap grew 4 kB"]}
+{"rank": 2, "session_summary": {"n": 513, "min_avail_gib": 4.6, "max_swap_delta_kb": 4}}
+{"rank": 2, "event": "stop", "t": 1791215984.974162, "min_avail_gib": 4.6, "max_swap_delta_kb": 4, "tripped": true}
+{"rank": 2, "event": "start", "t": 1791216033.206051, "host": "spark-2", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 231980, "mem_available_kb": 123346256, "pid": 3562357}
+{"rank": 2, "session_summary": {"n": 2281, "min_avail_gib": 17.12, "max_swap_delta_kb": 0}, "note": "no stop event in the fetched log"}
+{"rank": 3, "event": "start", "t": 1791213652.2537491, "host": "spark-3", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 2193288, "mem_available_kb": 123073492, "pid": 3429737}
+{"rank": 3, "session_summary": {"n": 1729, "min_avail_gib": 19.0, "max_swap_delta_kb": 0}}
+{"rank": 3, "event": "stop", "t": 1791215417.46175, "min_avail_gib": 19.0, "max_swap_delta_kb": 0, "tripped": false}
+{"rank": 3, "event": "start", "t": 1791215465.7099066, "host": "spark-3", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 2193264, "mem_available_kb": 123071420, "pid": 3566321}
+{"rank": 3, "t": 1791215893.1, "avail_gib": 4.69, "swap_used_mib": 2141.9, "swap_delta_kb": 4, "min_avail_gib": 4.69, "max_swap_delta_kb": 4, "tf_procs": 1, "VIOLATION": ["swap grew 4 kB"]}
+{"rank": 3, "session_summary": {"n": 514, "min_avail_gib": 4.69, "max_swap_delta_kb": 4}}
+{"rank": 3, "event": "stop", "t": 1791215988.6721005, "min_avail_gib": 4.69, "max_swap_delta_kb": 4, "tripped": true}
+{"rank": 3, "event": "start", "t": 1791216036.5661411, "host": "spark-3", "central": false, "peers": ["10.0.0.11", "10.0.0.12", "10.0.0.13"], "baseline_swap_used_kb": 2193172, "mem_available_kb": 123054248, "pid": 3613303}
+{"rank": 3, "session_summary": {"n": 2289, "min_avail_gib": 16.81, "max_swap_delta_kb": 0}, "note": "no stop event in the fetched log"}

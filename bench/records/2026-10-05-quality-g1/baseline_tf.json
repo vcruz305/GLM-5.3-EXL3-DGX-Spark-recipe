@@ -1,0 +1,48 @@
+{
+ "t": 1791190835.473573,
+ "floor_gib": 10.0,
+ "env": {
+  "CUDA_VISIBLE_DEVICES": "0",
+  "NCCL_SOCKET_IFNAME": "=enp1s0f0np0",
+  "NCCL_IB_HCA": "=rocep1s0f0",
+  "GLOO_SOCKET_IFNAME": "enp1s0f0np0",
+  "TF_NCCL_LIB": "/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2",
+  "TF_GLM53_DCP": "1",
+  "TF_GLM53_PROMPT_ROWS": "2048",
+  "TF_GLM53_ROCE": "0"
+ },
+ "nodes": [
+  {
+   "host": "spark-0",
+   "fadvised": 348,
+   "mem_available_kb": 123879960,
+   "mem_free_kb": 121859120,
+   "cached_kb": 2862056,
+   "swap_used_kb": 244504
+  },
+  {
+   "host": "spark-1",
+   "fadvised": 164,
+   "mem_available_kb": 121031752,
+   "mem_free_kb": 118909696,
+   "cached_kb": 3318316,
+   "swap_used_kb": 260716
+  },
+  {
+   "host": "spark-2",
+   "fadvised": 120,
+   "mem_available_kb": 122950528,
+   "mem_free_kb": 120583540,
+   "cached_kb": 3232072,
+   "swap_used_kb": 233064
+  },
+  {
+   "host": "spark-3",
+   "fadvised": 120,
+   "mem_available_kb": 123102952,
+   "mem_free_kb": 121181592,
+   "cached_kb": 3103536,
+   "swap_used_kb": 2194988
+  }
+ ]
+}

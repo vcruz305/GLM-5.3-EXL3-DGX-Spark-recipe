@@ -1,0 +1,42 @@
+[
+ {
+  "rank": 0,
+  "host": "spark-0",
+  "base_swap_kb": 244504,
+  "start_avail_gib": 118.13,
+  "min_avail_gib": 27.244,
+  "max_swap_delta_kb": 0,
+  "tripped": false,
+  "samples": 293
+ },
+ {
+  "rank": 1,
+  "host": "spark-1",
+  "base_swap_kb": 260716,
+  "start_avail_gib": 115.43,
+  "min_avail_gib": 24.728,
+  "max_swap_delta_kb": -4,
+  "tripped": false,
+  "samples": 298
+ },
+ {
+  "rank": 2,
+  "host": "spark-2",
+  "base_swap_kb": 233064,
+  "start_avail_gib": 117.26,
+  "min_avail_gib": 26.563,
+  "max_swap_delta_kb": 0,
+  "tripped": false,
+  "samples": 299
+ },
+ {
+  "rank": 3,
+  "host": "spark-3",
+  "base_swap_kb": 2194988,
+  "start_avail_gib": 117.39,
+  "min_avail_gib": 26.723,
+  "max_swap_delta_kb": 0,
+  "tripped": false,
+  "samples": 299
+ }
+]

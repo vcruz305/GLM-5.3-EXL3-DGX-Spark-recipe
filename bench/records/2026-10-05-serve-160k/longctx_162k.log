@@ -1,0 +1,2 @@
+book_162k: 162544 prompt tokens served (War and Peace (Leo Tolstoy, tr. Maude), Project Gutenberg #2600)
+  serial: TTFT 639.04 s, prompt 162544, eff prefill 254.4 tok/s, n 512 length, client decode 20.817471384302625, server tok_s 20.82, tokens/round 1.0, mode normed/normed

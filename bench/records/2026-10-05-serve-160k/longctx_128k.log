@@ -1,0 +1,6 @@
+book_128k: 127544 prompt tokens served (Moby-Dick; or, The Whale (Herman Melville), Project Gutenberg #2701)
+  serial: TTFT 514.98 s, prompt 127544, eff prefill 247.7 tok/s, n 512 length, client decode 21.74388039867461, server tok_s 21.76, tokens/round 1.0, mode normed/normed
+  dflash: TTFT 511.23 s, prompt 127544, eff prefill 249.5 tok/s, n 512 length, client decode 33.29838132785371, server tok_s 33.3, tokens/round 2.568, mode dflash
+  drafted ids == serial ids: True (first diff None); serial == sweep serial: None (first diff None)
+wrote longctx_ctx160k_dcp1_128k.json
+EXIT=0

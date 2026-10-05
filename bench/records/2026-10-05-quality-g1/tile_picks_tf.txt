@@ -1,0 +1,12 @@
+r0: [tensorfold] rank 0: took rank 0's tiles (0 of 567 linears differed)
+r0: [tensorfold] rank 0: tuned 8 linear shapes, 7 retiled: 6144x2048 (8, 4)->(4, 8), 2048x4096 (4, 4)->(1, 8), 4096x6144 (4, 4)->(2, 8), 6144x3072 (8, 4)->(4, 8), 3072x6144 (4, 4)->(2, 8), 6144x512 (8, 4)->(4, 8), 512x6144 (1, 4)->(1, 2)
+r0: [tensorfold] rank 0: one launch for 3 linear groups: 6144x3072 + 6144x3072 [(4, 8), (4, 8)], 2048x4096 + 2048x4096 [(8, 4), (8, 4)], 6144x512 + 6144x512 [(16, 8), (16, 8)]
+r1: [tensorfold] rank 1: took rank 0's tiles (321 of 567 linears differed)
+r1: [tensorfold] rank 1: tuned 8 linear shapes, 7 retiled: 6144x2048 (8, 4)->(4, 8), 6144x640 (8, 4)->(2, 8), 2048x4096 (4, 4)->(1, 8), 4096x6144 (4, 4)->(8, 2), 3072x6144 (4, 4)->(8, 4), 6144x512 (8, 4)->(4, 8), 512x6144 (1, 4)->(1, 2)
+r1: [tensorfold] rank 1: one launch for 4 linear groups: 6144x2048 + 6144x640 [(8, 8), (8, 8)], 6144x3072 + 6144x3072 [(16, 4), (8, 4)], 2048x4096 + 2048x4096 [(8, 4), (8, 4)], 6144x512 + 6144x512 [(8, 8), (16, 8)]
+r2: [tensorfold] rank 2: took rank 0's tiles (223 of 567 linears differed)
+r2: [tensorfold] rank 2: tuned 8 linear shapes, 6 retiled: 6144x640 (8, 4)->(2, 8), 2048x4096 (4, 4)->(1, 8), 6144x3072 (8, 4)->(4, 8), 3072x6144 (4, 4)->(2, 8), 6144x512 (8, 4)->(4, 8), 512x6144 (1, 4)->(1, 2)
+r2: [tensorfold] rank 2: one launch for 4 linear groups: 6144x2048 + 6144x640 [(8, 8), (8, 8)], 6144x3072 + 6144x3072 [(8, 4), (16, 4)], 2048x4096 + 2048x4096 [(8, 4), (8, 4)], 6144x512 + 6144x512 [(16, 8), (16, 8)]
+r3: [tensorfold] rank 3: took rank 0's tiles (185 of 567 linears differed)
+r3: [tensorfold] rank 3: tuned 8 linear shapes, 7 retiled: 6144x2048 (8, 4)->(4, 8), 6144x640 (8, 4)->(2, 8), 2048x4096 (4, 4)->(1, 8), 4096x6144 (4, 4)->(2, 8), 6144x3072 (8, 4)->(4, 8), 3072x6144 (4, 4)->(1, 8), 6144x512 (8, 4)->(4, 8)
+r3: [tensorfold] rank 3: one launch for 4 linear groups: 6144x2048 + 6144x640 [(16, 4), (32, 4)], 6144x3072 + 6144x3072 [(4, 8), (4, 8)], 2048x4096 + 2048x4096 [(16, 4), (8, 4)], 6144x512 + 6144x512 [(16, 8), (16, 8)]

@@ -1,0 +1,84 @@
+[tf_serve] rank 1 env: B12X_COMPILE_CACHE_DIR=/workspace/b12x/compile_cache B12X_ROCE_CACHE_DIR=/workspace/b12x/roce_cache B12X_ROCE_GID_INDEX=3 B12X_ROCE_SPIN_LIMIT=300000000 CUDA_VISIBLE_DEVICES=0 GLOO_SOCKET_IFNAME=enp1s0f0np0 NCCL_IB_HCA=rocep1s0f0 NCCL_SOCKET_IFNAME==enp1s0f0np0 PYTHONDONTWRITEBYTECODE=1 PYTHONFAULTHANDLER=1 PYTHONUNBUFFERED=1 TENSORFOLD_NO_UPDATE_CHECK=1 TFS_ALIAS=glm-5.3 TFS_API_KEY_FILE= TFS_B12X_ENV=/workspace/b12x/env.sh TFS_CLONE=/workspace/TensorFold/src TFS_CLONE_DIFF_SHA=1555d8ad577dccf99db990c90f9427b001ecdce91da05e23fcde01719ba4a7c7 TFS_CLONE_HEAD=689596d723115dc99d3c543e88847ebb93d00565 TFS_CONTEXT=262144 TFS_CTL=/workspace/tf_serve/ctl TFS_DFLASH=/workspace/models/GLM-5.3-DFlash2 TFS_DFLASH_CONFIDENCE=0.60 TFS_DFLASH_DEPTH=7 TFS_DRAFT_DEFAULT=1 TFS_FADVISE_DIRS=/workspace/view /workspace/models/GLM-5.3-EXL3-3.38bpw /workspace/models/lm_head_src /workspace/models/GLM-5.3-DFlash2 TFS_HCA=rocep1s0f0 TFS_HEALTH=round TFS_HOME=/workspace/tf_serve TFS_HTTP_HOST=127.0.0.1 TFS_HTTP_PORT=8890 TFS_IFNAME=enp1s0f0np0 TFS_LOGS=/workspace/tf_serve/logs TFS_MASTER=10.0.0.10 TFS_MASTER_PORT=29750 TFS_MAX_TOKENS=4096 TFS_MIN_AVAIL_GIB=2 TFS_MIN_START_GIB=100 TFS_NAME=GLM-5.3-EXL3-3.38bpw TFS_NCCL_LIB=/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2 TFS_OFFICIAL_TEMPLATE_SHA=3740abcea51c45830cb3ca562084ad5fb2ef53589376f73332e9886f93ade41c TFS_PROMPT_ROWS=2048 TFS_RANKS=spark-0:0:10.0.0.10 spark-1:1:10.0.0.11 spark-2:2:10.0.0.12 spark-3:3:10.0.0.13 TFS_ROCE=1 TFS_SRC_VIEW=/workspace/view TFS_SSH_HOSTS=spark-0 spark-1 spark-2 spark-3 TFS_TEMPLATE_SHA=2059ad4b073838cebd243d09b6633833e633edd866b95c549be25483909b00d0 TFS_THINKING=1 TFS_TILES=/workspace/tf_serve/tiles/tiles.json TFS_TILES_SHA=db409731548ce676d14f29818ff689611202c27023f5cc4bcb93cbd871d6c84a TFS_TILES_SRC=/workspace/tf_speed/tiles/tiles.json TFS_VENV_PY=/workspace/venv/bin/python TFS_VERIFY_ROWS=8 TFS_VIEW=/workspace/view TFS_WARMUP=1 TFS_WATCH_GRACE_S=45 TF_GLM53_CACHE_RESERVE_GB=6 TF_GLM53_DCP=1 TF_GLM53_DFLASH=/workspace/models/GLM-5.3-DFlash2 TF_GLM53_DFLASH_CONFIDENCE=0.60 TF_GLM53_DFLASH_DEPTH=7 TF_GLM53_PROFILE_FLAG=/workspace/tf_serve/ctl/PROFILE TF_GLM53_PROMPT_ROWS=2048 TF_GLM53_ROCE=1 TF_GLM53_VERIFY_ROWS=8 TF_NCCL_LIB=/workspace/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2
+[tf_serve] rank 1 argv: tensorfold serve /workspace/view --backend cuda --tp 4 --rank 1 --master 10.0.0.10 --master-port 29750 --context 262144 --host 127.0.0.1 --port 8890 --name GLM-5.3-EXL3-3.38bpw --max-tokens 4096 --thinking --no-update-check --alias glm-5.3
+[tensorfold] GLM-5.3 runs on four NVIDIA GPUs with 128 GB each (four DGX Sparks): serve with --tp 4 on all four (docs/design/glm-moe-dsa-tp4.md)
+[tensorfold] loading GLM-5.3-EXL3-3.38bpw: GLM-5.3 (glm_moe_dsa) on CUDA, rank 1 of 4
+[tf_speed] tiles pinned from /workspace/tf_serve/tiles/tiles.json (sha db409731548ce676): 567 linears, 352 differ from plan()
+[E1005 10:56:46.731313964 socket.cpp:1028] [c10d] The client socket has timed out after 120000ms while trying to connect to (10.0.0.10, 29761).
+[W1005 10:56:46.731522060 TCPStore.cpp:340] [c10d] TCP client failed to connect/validate to host 10.0.0.10:29761 - retrying (try=0, timeout=120000ms, delay=72528ms): The client socket has timed out after 120000ms while trying to connect to (10.0.0.10, 29761).
+Exception raised from throwTimeoutError at /__w/pytorch/pytorch/torch/csrc/distributed/c10d/socket.cpp:1030 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0xc8 (0xf0869053d558 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #1: c10::DistError::DistError(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x78 (0xf0869053e148 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #2: c10::DistNetworkError::DistNetworkError(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x78 (0xf0869053e4c8 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #3: <unknown function> + 0x72b4454 (0xf086af9c4454 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: <unknown function> + 0x72b7a84 (0xf086af9c7a84 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: <unknown function> + 0x72b7ddc (0xf086af9c7ddc in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #6: <unknown function> + 0x72b8318 (0xf086af9c8318 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #7: <unknown function> + 0x7220f5c (0xf086af930f5c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #8: c10d::TCPStore::TCPStore(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, c10d::TCPStoreOptions const&) + 0x310 (0xf086af93c570 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #9: <unknown function> + 0x1267d2c (0xf086b4f97d2c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #10: <unknown function> + 0x12f0448 (0xf086b5020448 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #11: <unknown function> + 0x639cb4 (0xf086b4369cb4 in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #12: <unknown function> + 0x370904 (0xbaf615060904 in /workspace/venv/bin/python)
+frame #13: <unknown function> + 0x34c684 (0xbaf61503c684 in /workspace/venv/bin/python)
+frame #14: _PyObject_Call + 0x114 (0xbaf615161c30 in /workspace/venv/bin/python)
+frame #15: <unknown function> + 0x3842b0 (0xbaf6150742b0 in /workspace/venv/bin/python)
+frame #16: <unknown function> + 0x3869b0 (0xbaf6150769b0 in /workspace/venv/bin/python)
+frame #17: <unknown function> + 0x63850c (0xf086b436850c in /workspace/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #18: _PyEval_EvalFrameDefault + 0x35d08 (0xbaf6150d55b0 in /workspace/venv/bin/python)
+frame #19: <unknown function> + 0x352284 (0xbaf615042284 in /workspace/venv/bin/python)
+frame #20: <unknown function> + 0x3ac724 (0xbaf61509c724 in /workspace/venv/bin/python)
+frame #21: <unknown function> + 0x3707f0 (0xbaf6150607f0 in /workspace/venv/bin/python)
+frame #22: _PyEval_EvalFrameDefault + 0x35944 (0xbaf6150d51ec in /workspace/venv/bin/python)
+frame #23: <unknown function> + 0x383d70 (0xbaf615073d70 in /workspace/venv/bin/python)
+frame #24: <unknown function> + 0x3869b0 (0xbaf6150769b0 in /workspace/venv/bin/python)
+frame #25: _PyEval_EvalFrameDefault + 0x35d08 (0xbaf6150d55b0 in /workspace/venv/bin/python)
+frame #26: <unknown function> + 0x383d70 (0xbaf615073d70 in /workspace/venv/bin/python)
+frame #27: <unknown function> + 0x3869b0 (0xbaf6150769b0 in /workspace/venv/bin/python)
+frame #28: _PyEval_EvalFrameDefault + 0x35d08 (0xbaf6150d55b0 in /workspace/venv/bin/python)
+frame #29: PyEval_EvalCode + 0xdc (0xbaf6151ee838 in /workspace/venv/bin/python)
+frame #30: <unknown function> + 0x533408 (0xbaf615223408 in /workspace/venv/bin/python)
+frame #31: <unknown function> + 0x27e0bc (0xbaf614f6e0bc in /workspace/venv/bin/python)
+frame #32: _PyRun_SimpleFileObject + 0x124 (0xbaf614f6dae8 in /workspace/venv/bin/python)
+frame #33: _PyRun_AnyFileObject + 0x50 (0xbaf614f6d3d8 in /workspace/venv/bin/python)
+frame #34: <unknown function> + 0x28cbb4 (0xbaf614f7cbb4 in /workspace/venv/bin/python)
+frame #35: <unknown function> + 0x28c5e8 (0xbaf614f7c5e8 in /workspace/venv/bin/python)
+frame #36: Py_RunMain + 0x438 (0xbaf615235e04 in /workspace/venv/bin/python)
+frame #37: <unknown function> + 0x546724 (0xbaf615236724 in /workspace/venv/bin/python)
+frame #38: <unknown function> + 0x43b470 (0xbaf61512b470 in /workspace/venv/bin/python)
+frame #39: <unknown function> + 0x284c4 (0xf087451284c4 in /lib/aarch64-linux-gnu/libc.so.6)
+frame #40: __libc_start_main + 0x98 (0xf08745128598 in /lib/aarch64-linux-gnu/libc.so.6)
+frame #41: <unknown function> + 0x43b360 (0xbaf61512b360 in /workspace/venv/bin/python)
+
+[tensorfold] RoCE one-shot reduce ready (ranks bit-equal: True; equals the NCCL rank-order sum: True; windows of 3 and 32 rows)
+[tensorfold] rank 1: took rank 0's tiles (0 of 567 linears differed)
+[tensorfold] rank 1: dropped page cache of 59 checkpoint files; device free 27.8 GiB before the caches
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/tf_serve/lib/tf_serve_rank.py", line 238, in <module>
+[rank1]:     raise SystemExit(main())
+[rank1]:                      ^^^^^^
+[rank1]:   File "/workspace/tf_serve/lib/tf_serve_rank.py", line 230, in main
+[rank1]:     rc = cli.main(targv)
+[rank1]:          ^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/cli.py", line 41, in main
+[rank1]:     return int(args.func(args) or 0)
+[rank1]:                ^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/cli.py", line 388, in cmd_serve
+[rank1]:     return _serve_cuda(args, family, model_dir, context)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/cli.py", line 284, in _serve_cuda
+[rank1]:     engine = family.package.cuda_engine(model_dir, **options)
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/tf_serve/lib/tf_serve_patches.py", line 278, in cuda_engine
+[rank1]:     engine = orig(model_dir, **options)
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/families/glm_moe_dsa/__init__.py", line 48, in cuda_engine
+[rank1]:     return Glm53Engine(Path(model_dir), rank=int(rank), master=master, port=int(master_port),
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/families/glm_moe_dsa/cuda/engine.py", line 150, in __init__
+[rank1]:     self.runner = Runner(fw, self.limit + self.k + 1, self.k, graphs=GRAPHS, slots=self.parallel)
+[rank1]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/families/glm_moe_dsa/cuda/runner.py", line 127, in __init__
+[rank1]:     self._check_cache_fits(w, capacity, slots)
+[rank1]:   File "/workspace/TensorFold/src/tensorfold/families/glm_moe_dsa/cuda/runner.py", line 282, in _check_cache_fits
+[rank1]:     raise RuntimeError(f"context {capacity} x {slots} streams needs {need / 2**30:.1f} GiB of caches a rank, "
+[rank1]: RuntimeError: context 262145 x 1 streams needs 21.9 GiB of caches a rank, 27.8 GiB is free (keeping 6 GiB spare): use --context <= 260166 with --parallel 1, or fewer streams

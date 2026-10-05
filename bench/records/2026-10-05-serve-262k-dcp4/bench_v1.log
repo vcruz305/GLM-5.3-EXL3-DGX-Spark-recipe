@@ -1,0 +1,33 @@
+[PASS] warm-up request
+[PASS] code: prompt ids == sweep - first diff None
+[FAIL] code: serial ids == sweep serial - n 512, first diff 104, tok/s 24.07
+[FAIL] code rep 0: drafted ids == sweep serial - n 512, first diff 104, tok/s 38.3, tokens/round 3.676, mode dflash d7 c0.6
+[PASS] prose: prompt ids == sweep - first diff None
+[FAIL] prose: serial ids == sweep serial - n 512, first diff 84, tok/s 24.04
+[FAIL] prose rep 0: drafted ids == sweep serial - n 512, first diff 84, tok/s 29.7, tokens/round 2.271, mode dflash d7 c0.6
+[PASS] math: prompt ids == sweep - first diff None
+[FAIL] math: serial ids == sweep serial - n 512, first diff 24, tok/s 24.05
+[FAIL] math rep 0: drafted ids == sweep serial - n 512, first diff 24, tok/s 46.2, tokens/round 5.323, mode dflash d7 c0.6
+[PASS] chat_explain: prompt ids == sweep - first diff None
+[FAIL] chat_explain: serial ids == sweep serial - n 512, first diff 119, tok/s 24.03
+[FAIL] chat_explain rep 0: drafted ids == sweep serial - n 512, first diff 119, tok/s 34.13, tokens/round 2.871, mode dflash d7 c0.6
+[PASS] chat_multiturn: prompt ids == sweep - first diff None
+[FAIL] chat_multiturn: serial ids == sweep serial - n 512, first diff 7, tok/s 24.03
+[FAIL] chat_multiturn rep 0: drafted ids == sweep serial - n 512, first diff 7, tok/s 29.71, tokens/round 2.231, mode dflash d7 c0.6
+[PASS] long_doc: prompt ids == sweep - first diff None
+[FAIL] long_doc: serial ids == sweep serial - n 512, first diff 20, tok/s 22.02
+[FAIL] long_doc rep 0: drafted ids == sweep serial - n 512, first diff 20, tok/s 36.85, tokens/round 3.549, mode dflash d7 c0.6
+
+| prompt | tokens | server tok/s (median) | client tok/s | tokens/round | sweep A d7c0.60 | sweep C | server / A | serial tok/s | exact |
+|---|---|---|---|---|---|---|---|---|---|
+| code | 52 | 38.30 | 38.30 | 3.68 | 40.62 | 40.54 | 0.943 | 24.07 | NO |
+| prose | 45 | 29.70 | 29.70 | 2.27 | 35.58 | 35.16 | 0.835 | 24.04 | NO |
+| math | 59 | 46.20 | 46.20 | 5.32 | 57.39 | 57.18 | 0.805 | 24.05 | NO |
+| chat_explain | 73 | 34.13 | 34.13 | 2.87 | 38.69 | 38.54 | 0.882 | 24.03 | NO |
+| chat_multiturn | 174 | 29.71 | 29.71 | 2.23 | 32.83 | 32.84 | 0.905 | 24.03 | NO |
+| long_doc | 2842 | 36.85 | 36.85 | 3.55 | 43.44 | 43.19 | 0.848 | 22.02 | NO |
+
+mean over all 6 prompts: server 35.82 tok/s vs sweep A 41.42 / C 41.24
+wrote /workspace/tf_serve/logs/bench_20261005_090928.json
+FAILED: 7/19
+EXIT=1
