@@ -188,6 +188,7 @@ gate (G2) on the pinned table was started and stopped before it finished: TODO(c
 | [`bench/`](bench/) | Engine-neutral `/v1` clients: `bench_v1.py` (smoke + the 6-prompt benchmark), `longctx_run.py` + `make_prompts.py` (long prompts), the reference prompts and ids |
 | [`bench/records/`](bench/records/README.md) | The measurement records behind every number in this README |
 | [`docs/`](docs/README.md) | A static benchmark viewer over `docs/benchmark-data.json` |
+| [`AGENTS.md`](AGENTS.md) | The exact commands and the "do not" list for an AI agent running this recipe |
 
 ## Do not
 
