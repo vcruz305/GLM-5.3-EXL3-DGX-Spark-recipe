@@ -111,6 +111,9 @@ fi
 # ---- 4. downloads -------------------------------------------------------------------------------------------------------
 HF="$VENV/bin/hf"
 if [[ -z "${SKIP_DOWNLOADS:-}" ]]; then
+  if [[ -z "${HF_TOKEN:-}" && ! -s "${HF_HOME:-$HOME/.cache/huggingface}/token" ]]; then
+    die "no Hugging Face token: the pack is gated. Request access on https://huggingface.co/$PACK_REPO, run '$HF auth login', then run setup.sh again (everything above is kept)"
+  fi
   say "pack $PACK_REPO @ ${PACK_REV:0:7} -> $PACK_DIR (319 GB; gated: request access on the model page, then '$HF auth login')"
   "$HF" download "$PACK_REPO" --revision "$PACK_REV" --local-dir "$PACK_DIR" --max-workers "${HF_MAX_WORKERS:-8}" \
     || die "pack download failed. Re-run to resume. Gated repo: accept access on huggingface.co/$PACK_REPO and log in. If transfers stall, retry with HF_HUB_DISABLE_XET=1"

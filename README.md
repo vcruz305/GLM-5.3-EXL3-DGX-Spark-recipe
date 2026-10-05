@@ -105,9 +105,12 @@ On **each of the four Sparks**, in a clone at the same path:
 ```bash
 git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git
 cd GLM-5.3-EXL3-DGX-Spark-recipe
-hf auth login        # the pack is gated: request access on its Hugging Face page first
 bash tensorfold-four-spark-tp4/setup.sh
 ```
+
+The pack is gated: request access on its Hugging Face page first. Without a Hugging Face token, the first run stops
+before the downloads and prints the login command (`~/glm53-tensorfold/venv/bin/hf auth login`); run `setup.sh`
+again after it.
 
 `setup.sh` builds a venv (torch cu130), checks out the pinned TensorFold commit, stages b12x, downloads the pack
 (319 GB), the drafter and the BF16 lm_head (1.9 GB, range-read from zai-org/GLM-5.3), and builds the serve view.

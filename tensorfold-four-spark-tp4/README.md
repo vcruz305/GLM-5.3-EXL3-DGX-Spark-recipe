@@ -186,9 +186,11 @@ password (its watchdog stops them on a breach). Every rank reads every shard, so
 
 ```bash
 git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git && cd GLM-5.3-EXL3-DGX-Spark-recipe
-hf auth login                                   # the pack is gated: request access first
 bash tensorfold-four-spark-tp4/setup.sh         # --check later verifies without changing anything
 ```
+
+The pack is gated: request access on its Hugging Face page first. Without a token, `setup.sh` stops before the
+downloads and prints the login command (`~/glm53-tensorfold/venv/bin/hf auth login`); run it again afterwards.
 
 Downloading on one Spark and copying `~/models/` to the others over the fabric (`rsync`) also works; then run
 `SKIP_DOWNLOADS=1 bash tensorfold-four-spark-tp4/setup.sh` there.
