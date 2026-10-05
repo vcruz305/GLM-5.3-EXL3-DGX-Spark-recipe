@@ -75,7 +75,7 @@ preflight)
     done
     for peer in $TFS_PEERS; do         # the central watchdog must be able to stop the peers
       timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=5 "$peer" true 2>/dev/null \
-        || { note "rank 0 cannot 'ssh -o BatchMode=yes $peer' (the watchdog stops all four through it): ./glm53 init --hosts ... prints the fix (or set the hosts file's peer_ssh column)"; ok=0; }
+        || { note "rank 0 cannot 'ssh -o BatchMode=yes $peer' (the watchdog stops all four through it): ./glm53 init --force on rank 0 prints the fix (or set the hosts file's peer_ssh column)"; ok=0; }
     done
   fi
   ( roce_env && note "RoCE env: HCA=$NCCL_IB_HCA GID=$B12X_ROCE_GID_INDEX SPIN=$B12X_ROCE_SPIN_LIMIT SOCKET=$NCCL_SOCKET_IFNAME fabric $MYIP" ) || ok=0

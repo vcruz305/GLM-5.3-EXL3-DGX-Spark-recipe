@@ -9,7 +9,8 @@ CC BY-NC-ND 4.0: non-commercial use only)
 [`vcruz305/TensorFold@757a851`](https://github.com/vcruz305/TensorFold/tree/glm53-tp4-spark); for `int4-262k` also the
 int4 KV cache, [`vcruz305/TensorFold@0c858e3`](https://github.com/vcruz305/TensorFold/tree/glm53-kv-int4); b12x
 `b58f34e` RoCE reductions
-**Entry point:** [`../glm53`](../glm53) (this folder's `run.sh`): `init`, `setup`, `up`, `chat`, ... from one machine
+**Entry point:** [`../glm53`](../glm53) (this folder's `run.sh`): `init`, `setup`, `up`, `chat`, ... from one of the
+Sparks (`init` finds the other three)
 **Status:** `fast-160k` and `dcp4-262k` measured 2026-10-05 on the stack these scripts package; `int4-262k` measured
 through a copy of `lib/` (TODO(confirm)) with its quality gate unfinished; the scripts themselves are statically
 checked only (see the root README's [Measurement status](../README.md#measurement-status))
@@ -209,24 +210,55 @@ knobs; with the default profile the environment and `tensorfold serve` argv are 
 **Requirements, on every Spark:** DGX OS / Ubuntu 24.04 (aarch64), CUDA 13 with `nvcc`, `python3` with its headers
 (`libpython3.12-dev`: Triton JIT-compiles against `Python.h`), `gcc` and `libibverbs-dev` (b12x's RDMA proxy),
 `rsync`, ~330 GB free disk for the pack, drafter and head, and at least 100 GiB of MemAvailable before a start. The
-four Sparks reach each other over the ConnectX-7 fabric (one RoCE rail), and rank 0 can ssh to ranks 1-3 without a
-password (its watchdog stops them on a breach). Every rank reads every shard, so **each Spark holds the full pack**.
+four Sparks sit on one QSFP switch (four Sparks need one) on the same ConnectX-7 port, with an IPv4 address on that
+port, as NVIDIA Sync's [Cluster Assistant](https://docs.nvidia.com/sync/latest/cluster-assistant.html) or the
+[Multi Sparks Through a Switch](https://build.nvidia.com/spark/multi-sparks-through-switch) playbook leaves them (one
+RoCE rail was measured). The same user account on all four, and rank 0 can ssh to ranks 1-3 without a password (its
+watchdog stops them on a breach). Every rank reads every shard, so **each Spark holds the full pack**.
 
-**The driver** (where you type `./glm53`): one of the Sparks or any Linux / macOS machine with `bash` 4 or newer,
-`ssh` and `rsync`, and passwordless ssh to all four. `init` checks both ssh paths and prints the commands that fix them.
+**The driver** (where you type `./glm53`) is normally one of the Sparks: `init` run there finds the other three and that
+Spark becomes rank 0. Any Linux / macOS machine with `bash` 4 or newer, `ssh` and `rsync` can drive instead, with
+`init --via <one Spark>` or `init --hosts H0,H1,H2,H3` and passwordless ssh to all four.
 
 ```bash
 git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git && cd GLM-5.3-EXL3-DGX-Spark-recipe
-./glm53 init --hosts spark-a,spark-b,spark-c,spark-d    # rank 0 first ('local' = this machine)
+./glm53 init                                            # on a Spark: finds the other three, checks ssh, writes hosts
 HF_TOKEN=hf_... ./glm53 setup --download-once           # all four in parallel; logs in tensorfold-four-spark-tp4/runs/
 ./glm53 up                                              # preflight, page cache, watchdogs, ranks 1-3, rank 0, READY
 ./glm53 chat "Explain RoCE in two sentences."
 ```
 
-- **`init`** writes `hosts` (rank, ssh target, fabric IP) after reading each Spark's IPv4 address on `FABRIC_IFNAME`
-  (default `enp1s0f0np0`) and the RDMA device behind it, and records both in `cluster.env`. It checks ssh from here to
-  every Spark and from rank 0 to ranks 1-3, and prints the exact commands for what is missing. `--fabric-ips` skips the
-  detection; `--peer-ssh` fills the optional fourth column (how rank 0 reaches a peer, default its fabric IP).
+- **`init`** ([`tools/discover.sh`](tools/discover.sh) does the looking, `run.sh` decides):
+  1. this machine must report a GB10 in `nvidia-smi`; anywhere else `init` stops and says to run it on a Spark, or to
+     use `--via` / `--hosts`;
+  2. the fabric port is a ConnectX-7 port (`ibdev2netdev`, else `/sys/class/infiniband`) that is Up with an IPv4
+     address: `enp1s0f*` before `enP2p1s0f*`, a static address before a 169.254 link-local one, or the
+     `FABRIC_IFNAME` you set;
+  3. candidates on that port's subnet come from `ip -4 neigh`, `avahi-browse _ssh._tcp` (the mDNS service NVIDIA's
+     `discover-sparks` uses; only when `avahi-utils` is installed) and one ping per address when the subnet has at
+     most 1,024 addresses (a 169.254.0.0/16 link-local fabric is not swept);
+  4. each candidate is probed over `ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new` (the first contact
+     records the host key, as `discover-sparks` does): `/etc/machine-id`, GPU, its address on the same port, the RDMA
+     device. A candidate that refuses the key is retried through any `~/.ssh/config` alias whose `HostName` is that
+     address. Non-GB10 machines and addresses without ssh (a switch) are listed and skipped; one Spark per machine-id;
+  5. exactly three other Sparks are required (two or five stop with the reason and the fix); ranks 1-3 are ordered
+     by fabric IP; `hosts` gets `local` for rank 0 and the fabric IPs as ssh targets; `cluster.env` gets
+     `FABRIC_IFNAME` and `ROCE_HCA`.
+
+  Missing passwordless ssh shows up as `Permission denied` in step 4; `init` then prints NVIDIA's fix, run once on
+  rank 0 in a terminal (it asks for the account password of each Spark):
+  `curl -fsSLO https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/refs/heads/main/nvidia/connect-two-sparks/assets/discover-sparks && bash ./discover-sparks`
+  ([script](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/connect-two-sparks/assets/discover-sparks):
+  finds the Sparks over avahi, needs `avahi-utils`, and puts one shared key, `~/.ssh/id_ed25519_shared`, on all of
+  them), or `ssh-copy-id <ip>` per Spark. `--dry-run` prints each discovery command and runs none.
+- **`init --via SPARK`** (from a machine that is not a Spark) runs the same discovery on `SPARK` over ssh, makes it
+  rank 0 and writes `ssh_config` (git-ignored, recorded as `SSH_CONFIG` in `cluster.env`) that reaches ranks 1-3
+  through it with `ProxyJump`; your key must be on all four (`ssh-copy-id -o ProxyJump=SPARK <ip>` is printed when it
+  is not).
+- **`init --hosts H0,H1,H2,H3`** skips discovery: the four ssh targets in rank order (`local` = this machine). It probes
+  each one (GB10, distinct machine-id, the fabric port rank 0 reports Up with an address unless `FABRIC_IFNAME` is set)
+  and checks ssh from rank 0 to ranks 1-3. `--fabric-ips` skips the address detection; `--peer-ssh` fills the optional
+  fourth column (how rank 0 reaches a peer, default its fabric IP).
 - **`setup`** copies this clone to every Spark (`rsync`, into the same path below the home directory; `RECIPE_SYNC=git`
   clones it instead), then runs `setup.sh` on all four in parallel with a log per Spark and a summary that names the
   fix for every failure. `setup.sh` builds a venv (torch cu130), checks out both pinned TensorFold trees, stages b12x,
@@ -246,9 +278,11 @@ HF_TOKEN=hf_... ./glm53 setup --download-once           # all four in parallel; 
   TensorFold's CUDA kernels.
 - Then `./glm53 smoke` (`/v1` checks), `./glm53 bench` (the 6 reference prompts: ids and tok/s against the tables
   above), `./glm53 status`, `./glm53 logs` (rank logs, watchdog logs and bench JSON into `runs/<time>/`),
-  `./glm53 tunnel --open` (the API on the driver's `127.0.0.1:8890`), `./glm53 down`. Those steps reuse the profile
+  `./glm53 tunnel` (on rank 0: the `ssh -L` command for your laptop; from another driver, `--open` runs it),
+  `./glm53 down`. Those steps reuse the profile
   of the last `up`. `./glm53 check` re-verifies every install; `./glm53 sync` re-copies this clone after a `git pull`.
-- `--dry-run` on any command prints every ssh and rsync command and runs nothing.
+- `--dry-run` on any command prints every ssh and rsync command (and, for `init`, each discovery command) and runs
+  nothing.
 
 **Without the launcher**, the same thing by hand: `bash tensorfold-four-spark-tp4/setup.sh` on each Spark (same clone
 path on all four), `cp hosts.example hosts` and edit it on the driver, then `serve.sh preflight`, `serve.sh up`,
@@ -283,7 +317,8 @@ commands.
 | `chat.sh` | one streamed chat request and the engine's stats for it |
 | `drop-model-cache.sh` | `posix_fadvise(DONTNEED)` of the model files (GB10 counts page cache as used) |
 | `hosts.example` | the four Sparks: rank, ssh target, fabric IP (`./glm53 init` writes `hosts`) |
-| `cluster.env` (git-ignored) | per-cluster settings `./glm53 init` / `setup` record (`FABRIC_IFNAME`, `ROCE_HCA`, `MODEL_DIR`); `run.sh` and `serve.sh` forward them to every Spark |
+| `tools/discover.sh` | what `init` runs on rank 0: the fabric port and the other Sparks on it (`discover`), and the per-Spark facts (`probe`) |
+| `cluster.env` (git-ignored) | per-cluster settings `./glm53 init` / `setup` record (`FABRIC_IFNAME`, `ROCE_HCA`, `MODEL_DIR`, `SSH_CONFIG` after `init --via`); `run.sh` and `serve.sh` forward them to every Spark |
 | `lib/tf_serve_rank.py` | the launcher: environment before imports, refusals, the wrappers, then `tensorfold.cli.main(["serve", ...])` |
 | `lib/tf_serve_patches.py` | serving wrappers: DFlash2 default, startup + per-request rank consensus, fatal exit on a failed round, warm-up |
 | `lib/tf_speed_patches.py`, `lib/tf_speed_common.py` | the speed sweep's wrappers: tile pinning, the RoCE rank-order hard stop, the per-round health guard and consensus |
@@ -370,7 +405,9 @@ measure a new configuration, and label the numbers as new.
 
 - **This repo's scripts end to end** on fresh Sparks: `./glm53 init`, `setup` (venv, TensorFold checkouts, b12x stage,
   downloads or the `--download-once` copy, view), `up`, `smoke`, `bench`. Every number above came from the predecessor
-  stack; the launcher has run only with ssh and rsync replaced by stand-ins.
+  stack; the launcher has run only with ssh and rsync replaced by stand-ins. `init`'s fabric discovery (with and
+  without `--via`) has run only against simulated Sparks (stand-ins for `ssh`, `ip`, `ping`, `nvidia-smi`,
+  `ibdev2netdev`, `avahi-browse`), not on a real ConnectX-7 fabric, NVIDIA Sync cluster or `discover-sparks` setup.
 - **Sampled requests.** Everything was greedy; the speed-up at temperature > 0 is unmeasured.
 - **The thinking-on stress sequence** (long prompts with tool calls, streamed channels) has not been run.
 - **HTTP overhead, directly.** Streaming does per-token work on rank 0 inside the decode round. The 6-prompt mean
@@ -385,9 +422,12 @@ measure a new configuration, and label the numbers as new.
 
 | Symptom | Cause / fix |
 |---|---|
-| `no hosts file yet` / `no hosts file at ...` | `./glm53 init --hosts H0,H1,H2,H3` (or `cp hosts.example hosts` and fill it in) |
-| `init`: `ssh to <host> failed` / `rank 0 -> rank N: FAILED` | run the `To fix:` lines it prints (`ssh-copy-id`, rank 0's key into the peer's `authorized_keys`, `StrictHostKeyChecking=accept-new` once), then `init ... --force` |
-| `init`: `no IPv4 address on FABRIC_IFNAME=...` | `FABRIC_IFNAME=<the ConnectX-7 port with the fabric address> ./glm53 init ... --force` (it lists each Spark's addresses), or `--fabric-ips` |
+| `no hosts file yet` / `no hosts file at ...` | `./glm53 init` on one of the Sparks (or `cp hosts.example hosts` and fill it in) |
+| `init`: `is not a DGX Spark` | run `init` on one of the four Sparks, or `./glm53 init --via <one Spark>` / `--hosts` from where you are |
+| `init`: `Permission denied` / `found N of the other three` / `rank 0 -> rank N: FAILED` | the `To fix:` lines: NVIDIA's `discover-sparks` (or `ssh-copy-id` per Spark) once on rank 0, a changed host key (`ssh-keygen -R <ip>`), a Spark off or on another port; then `./glm53 init --force` |
+| `init`: `only N of the other three Sparks answered` on a 169.254.x.x fabric | a /16 is not ping-swept: `sudo apt install -y avahi-utils` on rank 0 (mDNS), or `--hosts local,<ip>,<ip>,<ip>` |
+| `init`: `5 answered` / `same /etc/machine-id` | name the four: `./glm53 init --hosts local,<ip>,<ip>,<ip> --force` |
+| `init`: `no ConnectX-7 port is Up` / `has no IPv4 address` | cable the same port of all four to the switch and give it an address (Cluster Assistant or the switch playbook), or `FABRIC_IFNAME=<port> ./glm53 init --force`; with `--hosts`, `--fabric-ips` too |
 | `setup`: `FAIL rank N ...` | the summary prints the fix; the full log is `runs/setup-<time>/setup-rankN.log`; re-run `./glm53 setup` (finished steps are kept) |
 | `no Hugging Face token` | request access to the pack, then `HF_TOKEN=hf_... ./glm53 setup` (or `hf auth login` on that Spark) |
 | `the pack at ... is incomplete` / `truncated` | `./glm53 setup` (downloads resume; `--download-once` copies resume) |
@@ -399,7 +439,7 @@ measure a new configuration, and label the numbers as new.
 | `b12x builds a small RDMA proxy with gcc + libibverbs` | `sudo apt install -y gcc libibverbs-dev`, then `./glm53 setup` (or `TFS_ROCE=0` for NCCL) |
 | `b12x tarball sha256 ... !=` | GitHub served a different archive for `b58f34e`; inspect it, then `B12X_TARBALL_SHA=<sha> ./glm53 setup` to accept |
 | `REFUSE: NCCL_IB_HCA='=rocep1s0f0'` | start through `./glm53` / `serve.sh` / `rank.sh`, never by hand: `tools/b12x_env.sh` strips the `=` |
-| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` re-detects both |
+| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init --force` re-detects both |
 | `decode-window reductions: NCCL` then `FATAL ... RoCE requested` | b12x stage or GID problem; `rank.sh preflight --rank R` prints the resolved GID |
 | `3/4 clients joined` / `client socket has timed out after 120000ms`, then `FATAL ... RoCE requested` | b12x's setup rendezvous started before the slowest rank had loaded. Fixed by the rendezvous barrier (`align_roce_rendezvous` in `lib/tf_serve_patches.py`; rank logs show `all 4 ranks loaded; b12x RoCE rendezvous ... now`); if you see it, update the recipe (`git pull`, `./glm53 sync`) and start again |
 | `context ... x 1 streams needs ... is free` / `LOW MEMORY` | page cache or another job's memory: `./glm53 fadvise`, check `preflight`; never lower `TF_GLM53_CACHE_RESERVE_GB` |

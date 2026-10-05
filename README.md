@@ -14,8 +14,9 @@ reductions go over the ConnectX-7 fabric with [b12x](https://github.com/local-in
 all-reduce. Drafting uses the [DFlash2](https://huggingface.co/incoai/GLM-5.3-DFlash2) drafter. **Drafted replies are
 token-identical to serial decoding:** every measured drafted reply equals the `"draft": false` reply, token for token.
 
-> **Using an AI agent to set this up?** It should read [`AGENTS.md`](AGENTS.md), [Do not](#do-not) and
-> [Troubleshooting](#troubleshooting) before running anything, then follow [Quick start](#quick-start) literally.
+> **Using an AI agent to set this up?** It should read [`AGENTS.md`](AGENTS.md) (every step, the expected output and
+> the fix for each failure), [Do not](#do-not) and [Troubleshooting](#troubleshooting) before running anything. Nobody
+> needs to know the Sparks' names: `./glm53 init`, run on any one of them, finds the other three.
 
 | Sparks | Folder | Model | Engine | Status |
 |---|---|---|---|---|
@@ -111,33 +112,57 @@ packages: the same TensorFold tree (byte-identical diff, checked by hash), the s
 table, b12x commit, drafter, BF16 lm_head and chat template. The raw records are in
 [`bench/records/`](bench/records/README.md). This repo's `./glm53 init` → `setup` → `up` → `bench` sequence (and the
 `setup.sh` / `serve.sh` scripts under it) has been checked statically (`bash -n`, `py_compile`, `--dry-run` of every
-command and profile, and the launcher with ssh and rsync replaced by stand-ins) but has **not** yet been run end to
-end on fresh Sparks: TODO(confirm) by one session that follows [Quick start](#quick-start) literally.
+command and profile, the launcher with ssh and rsync replaced by stand-ins, and `init`'s fabric discovery against
+simulated Sparks) but has **not** yet been run end to end on fresh Sparks: TODO(confirm) by one session that follows [Quick start](#quick-start) literally.
 
 ## Quick start
 
-From the machine that drives the cluster: one of the Sparks, or any Linux / macOS box with `bash` 4+, `ssh` and
-`rsync` that reaches all four without a password. Request access to the
-[pack](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) on Hugging Face first (it is gated).
+**What you need.** Four DGX Sparks cabled to one QSFP switch on the same ConnectX-7 port, with an IPv4 address on that
+port (NVIDIA Sync's [Cluster Assistant](https://docs.nvidia.com/sync/latest/cluster-assistant.html) or NVIDIA's
+[Multi Sparks Through a Switch](https://build.nvidia.com/spark/multi-sparks-through-switch) playbook sets this up; four
+Sparks need a switch), the same user account on all four, and access to the gated
+[pack](https://huggingface.co/vcruz305/GLM-5.3-EXL3-3.38bpw) on Hugging Face (request it on the model page). You do
+**not** need to know the Sparks' names or addresses.
+
+**0. Get a shell on any one of the four Sparks.** That Spark becomes rank 0 and serves the API. The ways NVIDIA documents
+([Set Up Local Network Access](https://build.nvidia.com/spark/connect-to-your-spark)):
+
+- `ssh <user>@<hostname>.local`: every Spark announces its hostname over mDNS (for example `spark-abcd.local`; the
+  hostname is on the Quick Start Guide that came in the box);
+- `ssh <user>@<ip>`: its address on your network (your router's admin page lists it) when mDNS does not resolve;
+- NVIDIA Sync: add the Spark (Sync finds it over mDNS, or takes its IP), then open a terminal on it from Sync;
+- or a display, keyboard and mouse on the Spark itself.
 
 ```bash
 git clone https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git && cd GLM-5.3-EXL3-DGX-Spark-recipe
-./glm53 init --hosts spark-a,spark-b,spark-c,spark-d   # ranks 0-3 by ssh target; finds each fabric IP, checks ssh
-HF_TOKEN=hf_... ./glm53 setup --download-once          # all four in parallel; one 319 GB download, copied over the fabric
-./glm53 up                                             # preflight, then ~8 min to READY (first start: longer)
+./glm53 init                                    # finds the other three Sparks on the fabric, checks ssh to each
+HF_TOKEN=hf_... ./glm53 setup --download-once   # all four in parallel; one 319 GB download, copied over the fabric
+./glm53 up                                      # preflight, then ~8 min to READY (first start: longer)
 ./glm53 chat "Explain RoCE in two sentences."
 ```
 
-- `init` prints the exact commands for anything missing (ssh keys from here to the Sparks and from rank 0 to ranks
-  1-3, a fabric port without an address). `setup` copies this clone to every Spark, runs
+- **`init`** runs on the Spark you are on and needs no names: it finds the ConnectX-7 port that is up with an IPv4
+  address, lists the machines on that subnet (`ip neigh`, a ping sweep of a small subnet, mDNS via `avahi-browse` when
+  installed), checks each over `ssh -o BatchMode=yes` (GPU must be a GB10, one per `/etc/machine-id`), requires exactly
+  three others, ranks them by fabric IP and writes the hosts file with the fabric IPs as ssh targets. Run on a machine
+  that is not a Spark, it stops and says how to continue.
+- **Passwordless ssh from this Spark to the other three is required** (rank 0's watchdog stops the others through it,
+  and `--download-once` copies over it). If it is missing, `init` prints the fix: NVIDIA's
+  [`discover-sparks`](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/connect-two-sparks/assets/discover-sparks)
+  script from the Connect Two Sparks / Multi Sparks playbooks (run once on this Spark; it asks for your password on
+  each Spark and installs one shared key), or `ssh-copy-id` per Spark. NVIDIA Sync's Cluster Assistant also sets up
+  ssh between the Sparks.
+- **Run every later `./glm53` command on the same Spark.** `setup` copies this clone to the other three, runs
   `tensorfold-four-spark-tp4/setup.sh` on all four with one log each, and prints a summary with the fix for each
-  failure; re-running it resumes. Without `--download-once` each Spark downloads the pack itself; with
-  `--model-dir /path/to/pack` an existing copy is checked and used instead.
-- The API is `http://127.0.0.1:8890/v1` on rank 0, model id `GLM-5.3-EXL3-3.38bpw`. `./glm53 tunnel --open` brings it to
-  the driver's `127.0.0.1:8890`.
+  failure; re-running it resumes. With `--model-dir /path/to/pack` an existing copy is checked and used instead.
+- The API is `http://127.0.0.1:8890/v1` on rank 0, model id `GLM-5.3-EXL3-3.38bpw`. `./glm53 tunnel` prints the
+  `ssh -L` command that brings it to your laptop.
 - `./glm53 smoke`, `./glm53 bench` (the 6 reference prompts: ids and tok/s), `./glm53 status`, `./glm53 logs`,
-  `./glm53 down`. `--dry-run` on any command prints every ssh / rsync command and runs nothing. `./glm53 help` lists
-  everything.
+  `./glm53 down`. `--dry-run` on any command prints every command (ssh, rsync, and for `init` each discovery step) and
+  runs nothing. `./glm53 help` lists everything.
+- **Driving from a laptop instead:** `./glm53 init --via <any one Spark>` runs the same discovery on that Spark and
+  reaches the other three through it (your key must be on all four), and `./glm53 init --hosts H0,H1,H2,H3` names
+  all four yourself, rank 0 first.
 
 ```bash
 curl -s http://127.0.0.1:8890/v1/chat/completions -H 'Content-Type: application/json' -d '{
@@ -221,11 +246,16 @@ gate (G2) on the pinned table was started and stopped before it finished: TODO(c
 
 ## Do not
 
+- **Do not guess host names or addresses**, and do not hand-write the hosts file. `./glm53 init` on a Spark finds the
+  others; use `--hosts` only with addresses read from the Sparks themselves.
+- **Do not ask for passwords or tokens in chat, and do not type them for the user.** `discover-sparks`,
+  `ssh-copy-id`, `sudo` and `hf auth login` prompt in the user's terminal.
 - **Do not install TensorFold from PyPI, a release tag or `ashhart/TensorFold` main.** None of them has the
   `glm_moe_dsa` family yet (PR #159 is open), and PR #159 alone does not load this pack (host memory and fp16
   tensors, see the folder README). `setup.sh` checks out the pinned `vcruz305/TensorFold` commits; every launcher
   refuses another tree.
-- **Do not repoint the pins at the upstream PR branches** (`glm53-gb10-loading` and the rest). They rename functions
+- **Do not repoint the pins at the upstream PR branches** (`glm53-gb10-loading` and the rest, open as
+  [drowzeys/TensorFold #1 to #5](https://github.com/drowzeys/TensorFold/pulls)). They rename functions
   the runtime check looks for, and none of them has been measured through these scripts.
 - **Do not `pip install b12x`.** PyPI 1.3.0 has no `comm.roce` module. `setup.sh` stages commit `b58f34e`.
 - **Do not serve the pack directory.** TensorFold needs the BF16 `lm_head.weight` and the fixed chat template; both
@@ -241,6 +271,7 @@ gate (G2) on the pinned table was started and stopped before it finished: TODO(c
 - **Do not start while another job holds a GPU** on any of the four Sparks. `preflight` and `rank.sh start` refuse.
 - **Do not put a Hugging Face token on a command line** that is logged or shared; `HF_TOKEN=... ./glm53 setup` passes
   it to the Sparks over ssh stdin only.
+- **Do not expose port 8890 beyond loopback** unless the user asks, and then only with `TFS_API_KEY_FILE`.
 - **Do not quote the SixCat decode figure as user-facing speed**, and do not redistribute the DFlash2 weights
   (CC BY-NC-ND 4.0: non-commercial use only).
 
@@ -251,15 +282,18 @@ output stays in `tensorfold-four-spark-tp4/runs/`.
 
 | Symptom | Cause / fix |
 |---|---|
-| `no hosts file yet` | `./glm53 init --hosts H0,H1,H2,H3` (rank 0 first) |
-| `init`: `ssh to <host> failed`, `rank 0 -> rank N: FAILED` | run the printed `ssh-copy-id` / key / `StrictHostKeyChecking=accept-new` lines, then `./glm53 init ... --force`. Rank 0's watchdog stops the peers over ssh, and `--download-once` copies over it |
-| `init`: `no IPv4 address on FABRIC_IFNAME=...` | `FABRIC_IFNAME=<ConnectX-7 port> ./glm53 init ... --force` (it lists each Spark's addresses), or `--fabric-ips A,B,C,D` |
+| `no hosts file yet` | `./glm53 init` on one of the four Sparks (it finds the other three), then run every `./glm53` command there |
+| `init`: `This machine ... is not a DGX Spark` | `init` must run on a Spark: ssh to any one of the four (step 0 of [Quick start](#quick-start)) and run it there, or `./glm53 init --via <one Spark>` from here |
+| `init`: `Permission denied`, `found 0 of the other three` / `rank 0 -> rank N: FAILED` | passwordless ssh from rank 0 to the others is missing: run the printed NVIDIA `discover-sparks` line (or `ssh-copy-id` per Spark) in a terminal on rank 0, then `./glm53 init --force`. Rank 0's watchdog stops the peers over ssh, and `--download-once` copies over it |
+| `init`: `found 2 of the other three` / `only N ... answered` | a Spark is off, cabled on another port, or has no address on the fabric port; on a 169.254.x.x (link-local) fabric install `avahi-utils` so `init` can use mDNS. Or `./glm53 init --hosts local,<ip>,<ip>,<ip> --force` |
+| `init`: `exactly four Sparks and 5 answered` | more than four Sparks on the fabric: choose four with `./glm53 init --hosts local,<ip>,<ip>,<ip> --force` |
+| `init`: `no ConnectX-7 port is Up` / `has no IPv4 address yet` | cable and address the fabric first: NVIDIA Sync's Cluster Assistant or the [Multi Sparks Through a Switch](https://build.nvidia.com/spark/multi-sparks-through-switch) playbook; `FABRIC_IFNAME=<port> ./glm53 init` picks a port |
 | `setup`: `no Hugging Face token` | request access to the pack, then `HF_TOKEN=hf_... ./glm53 setup` |
 | `setup`: `no Python.h`, `gcc + libibverbs`, `nvcc not found` | `sudo apt install -y libpython3.12-dev` / `gcc libibverbs-dev`, or `CUDA_HOME=<CUDA 13>`; then `./glm53 setup` again |
 | `TensorFold at ... is <sha>, the recipe pins ...` / `lacks the measured loader fixes` | another TensorFold tree; `./glm53 setup` |
 | `recipe clone at <sha>, here <sha>` | `./glm53 sync` |
 | `no b12x RoCE module staged` | `./glm53 setup` (needs `gcc` + `libibverbs-dev`), or `TFS_ROCE=0` for NCCL reductions (measured 37.07 vs 41.42 tok/s) |
-| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not this Spark's address on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` |
+| `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not this Spark's address on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init --force` re-detects both |
 | `3/4 clients joined` (or a peer's `client socket has timed out`), then `FATAL ... RoCE requested` | a rank loaded minutes after the others and missed b12x's 120 s setup rendezvous. Fixed by the rendezvous barrier in `tensorfold-four-spark-tp4/lib/tf_serve_patches.py` (every rank waits until all four have loaded); seeing it means this clone predates it: update the recipe (`git pull`, `./glm53 sync`), then `./glm53 down` and `./glm53 up` |
 | `context ... needs ... GiB of caches a rank, ... is free` / `LOW MEMORY` | page cache from a download or another load: `./glm53 fadvise`, stop other jobs |
 | `profile int4-262k is not validated yet` | intended; `--allow-unvalidated` only when asked to run it |

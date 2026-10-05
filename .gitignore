@@ -11,6 +11,7 @@ models/
 # per-cluster files: ./glm53 init writes them (or copy hosts.example and edit)
 tensorfold-four-spark-tp4/hosts
 tensorfold-four-spark-tp4/cluster.env
+tensorfold-four-spark-tp4/ssh_config
 tensorfold-four-spark-tp4/runs/
 # long-prompt inputs are rebuilt by bench/make_prompts.py (Project Gutenberg downloads)
 bench/books/

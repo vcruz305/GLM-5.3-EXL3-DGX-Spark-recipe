@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # GLM-5.3 (SAGE MixedK EXL3, 3.38 bpw) on four DGX Sparks, TensorFold TP=4: set up and run the whole cluster from ONE
-# machine (one of the Sparks, or any Linux / macOS box with ssh to all four). The repo root's ./glm53 calls this file.
+# machine: one of the Sparks (`./glm53 init` there finds the other three by itself), or any Linux / macOS box with ssh
+# to all four (`init --via SPARK` or `init --hosts`). The repo root's ./glm53 calls this file.
 # It drives setup.sh (per Spark, over ssh), serve.sh (the driver) and rank.sh (per Spark); those still work on their
 # own. `./glm53 help` prints the usage below.
 set -uo pipefail
@@ -9,20 +10,28 @@ usage() {
   cat <<'EOF'
 Usage: ./glm53 <command> [options]
 
-First time, from the machine you drive the cluster from:
-  ./glm53 init --hosts spark-a,spark-b,spark-c,spark-d   hosts file for ranks 0-3 (in that order): detects each Spark's
-                                                          fabric IP, checks ssh, prints the fix for anything missing
-  ./glm53 setup [--download-once] [--model-dir DIR]       installs on all four in parallel; re-runnable, downloads resume
-  ./glm53 up [--profile NAME]                             preflight, then all four ranks (~8 min) until READY
+First time, on any one of the four Sparks (it becomes rank 0 and serves the API):
+  ./glm53 init                                      finds the other three Sparks on the ConnectX-7 fabric by itself,
+                                                    checks ssh to them, writes the hosts file: no host names needed
+  HF_TOKEN=hf_... ./glm53 setup --download-once     installs on all four in parallel, one pack download copied over
+                                                    the fabric; re-runnable, downloads resume
+  ./glm53 up [--profile NAME]                       preflight, then all four ranks (~8 min) until READY
 Then:
-  ./glm53 chat "Explain RoCE in two sentences."           one streamed request on rank 0, with the engine's stats
-  ./glm53 smoke | bench                                   /v1 checks | the 6 reference prompts (ids + tok/s)
+  ./glm53 chat "Explain RoCE in two sentences."     one streamed request on rank 0, with the engine's stats
+  ./glm53 smoke | bench                             /v1 checks | the 6 reference prompts (ids + tok/s)
   ./glm53 status | logs | tunnel [--open] | down
 
 Commands:
-  init       --hosts H0,H1,H2,H3   ssh targets in rank order (rank 0 serves the API; 'local' = this machine)
-             [--fabric-ips A,B,C,D] skip detection   [--peer-ssh P1,P2,P3] how rank 0 reaches ranks 1-3 (default:
-             their fabric IPs)   [--force] replace an existing hosts file
+  init       run on a Spark: finds the other three on its ConnectX-7 fabric port (ip neigh, avahi _ssh._tcp, a ping
+             sweep of a small subnet), keeps those that answer ssh -o BatchMode=yes with a GB10 GPU and their own
+             /etc/machine-id, needs exactly three, ranks them by fabric IP (this Spark = rank 0) and writes the hosts
+             file with fabric IPs as ssh targets. On a machine that is not a Spark it stops and says what to do.
+             [--via SPARK]          from a machine that is not a Spark: run the discovery on SPARK (any ssh target of
+                                    one of the four); it becomes rank 0 and ranks 1-3 are reached through it
+             [--hosts H0,H1,H2,H3]  skip discovery: the four ssh targets in rank order ('local' = this machine)
+               [--fabric-ips A,B,C,D] skip address detection   [--peer-ssh P1,P2,P3] how rank 0 reaches ranks 1-3
+             [--force]              replace an existing hosts file
+             FABRIC_IFNAME=<port> ./glm53 init   use that ConnectX-7 port instead of detecting it
   setup      [--download-once]  download the 319 GB pack once on rank 0 and rsync it to ranks 1-3 over the fabric
              [--model-dir DIR]  the pack already sits at DIR (on every Spark, or on rank 0 with --download-once)
              [--no-int4]        skip the second TensorFold tree (then int4-262k needs another setup)
@@ -33,10 +42,12 @@ Commands:
   up         [--profile fast-160k|int4-262k|dcp4-262k] [--allow-unvalidated] [--skip-preflight]
   status | logs | smoke | bench | fadvise | down        the serve.sh step of the same name, on all four / rank 0
   chat       "prompt"   (THINKING=0, DRAFT=0, TEMPERATURE=0, MAX_TOKENS=N as in chat.sh)
-  tunnel     print the ssh tunnel to rank 0's API; --open runs it (Ctrl-C closes it)
+  tunnel     the ssh tunnel to rank 0's API (port 8890): from another driver it prints it (--open runs it, Ctrl-C
+             closes it); on rank 0 itself it prints the command to run on your laptop
 
 Every command takes:
-  --dry-run              print every ssh / rsync command instead of running it (no ssh at all)
+  --dry-run              print every ssh / rsync command instead of running it (no ssh at all; init prints each
+                         discovery command)
   --profile NAME         fast-160k   163,840 tokens, bf16 KV cache: the measured fast path (default)
                          int4-262k   262,144 tokens, int4 KV cache (glm53-kv-int4 tree); quality gate not finished,
                                      so it also needs --allow-unvalidated
@@ -44,7 +55,8 @@ Every command takes:
                          smoke / bench / status / chat / down reuse the profile of the last `up`.
 
 Files (git-ignored): tensorfold-four-spark-tp4/hosts (rank ssh_target fabric_ip [peer_ssh]), tensorfold-four-spark-tp4/
-cluster.env (MODEL_DIR, FABRIC_IFNAME, ROCE_HCA, ...: forwarded to every Spark), logs in tensorfold-four-spark-tp4/runs/.
+cluster.env (MODEL_DIR, FABRIC_IFNAME, ROCE_HCA, ...: forwarded to every Spark), tensorfold-four-spark-tp4/ssh_config
+(init --via only), logs in tensorfold-four-spark-tp4/runs/.
 Settings: env.sh (FABRIC_IFNAME, ROCE_HCA, SSH_CONFIG, REMOTE_REPO, RECIPE_HOME, TFS_*).
 EOF
 }
@@ -56,7 +68,7 @@ fail() { echo "error: $*" >&2; exit 1; }
 # ---- arguments ------------------------------------------------------------------------------------------------------
 CMD="${1:-help}"; [[ $# -gt 0 ]] && shift
 OPT_DRY=0 OPT_FORCE=0 OPT_ONCE=0 OPT_SKIP_PRE=0 OPT_OPEN=0
-OPT_HOSTS="" OPT_IPS="" OPT_PEERS="" OPT_MODEL_DIR="" PROFILE_FROM=""
+OPT_HOSTS="" OPT_IPS="" OPT_PEERS="" OPT_MODEL_DIR="" OPT_VIA="" PROFILE_FROM=""
 ARGS=()
 need_val() { [[ -n "${2:-}" && "${2:0:2}" != -- ]] || fail "$1 needs a value (./glm53 help)"; }
 while [[ $# -gt 0 ]]; do
@@ -71,6 +83,8 @@ while [[ $# -gt 0 ]]; do
     --fabric-ips=*) OPT_IPS="${1#*=}" ;;
     --peer-ssh) need_val "$@"; OPT_PEERS="$2"; shift ;;
     --peer-ssh=*) OPT_PEERS="${1#*=}" ;;
+    --via) need_val "$@"; OPT_VIA="$2"; shift ;;
+    --via=*) OPT_VIA="${1#*=}" ;;
     --model-dir) need_val "$@"; OPT_MODEL_DIR="$2"; shift ;;
     --model-dir=*) OPT_MODEL_DIR="${1#*=}" ;;
     --download-once) OPT_ONCE=1 ;;
@@ -113,6 +127,7 @@ case "$CMD" in
   smoke|bench|status|logs|chat|tunnel|down|fadvise)
     if [[ -z "${PROFILE+x}" && -f "$SERVING_ENV" ]]; then load_kv "$SERVING_ENV"; PROFILE_FROM=last-up; fi ;;
 esac
+USER_IFNAME="${FABRIC_IFNAME:-}"                 # a port you named yourself (init detects one otherwise)
 load_kv "$CLUSTER_ENV"
 
 # ---- what reaches the Sparks: only variables you set (or cluster.env set), captured before env.sh fills in defaults ---
@@ -141,7 +156,12 @@ fi
 export REMOTE_REPO
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=20)
 SSHP="ssh"                                       # the same, as typed in a fix command
-if [[ -n "${SSH_CONFIG:-}" ]]; then SSH+=(-F "$SSH_CONFIG"); SSHP="ssh -F $SSH_CONFIG"; fi
+if [[ -n "${SSH_CONFIG:-}" ]]; then SSH+=(-F "$SSH_CONFIG"); SSHP="ssh -F $(printf %q "$SSH_CONFIG")"; fi
+ssh_e() {                                        # the ssh command for rsync -e (rsync splits it; quotes keep spaces)
+  local a out=""
+  for a in "${SSH[@]}"; do if [[ "$a" == *" "* ]]; then out+=" '$a'"; else out+=" $a"; fi; done
+  printf '%s\n' "${out# }"
+}
 
 # ---- helpers ----------------------------------------------------------------------------------------------------------
 qdir() { if [[ "$1" == "~/"* ]]; then printf '~/%q' "${1#\~/}"; else printf %q "$1"; fi; }
@@ -161,7 +181,7 @@ on() {                                           # on TARGET CMD: how a user typ
   if [[ "$1" == local ]]; then printf '%s\n' "$2"; else printf "%s %s '%s'\n" "$SSHP" "$1" "$2"; fi
 }
 need_hosts() {
-  [[ -f "$HOSTS_FILE" ]] || fail "no hosts file yet. Run: ./glm53 init --hosts H0,H1,H2,H3 (the four Sparks' ssh targets, rank 0 first)"
+  [[ -f "$HOSTS_FILE" ]] || fail "no hosts file yet. Run ./glm53 init on one of the four Sparks (it finds the other three), then ./glm53 $CMD there"
   read_hosts
 }
 gate_profile() {
@@ -202,12 +222,12 @@ hint_from() {                                    # hint_from FILE: queue the fix
   g 'the recipe pins|lacks the measured loader fixes|no TensorFold checkout|no venv at|not the recipe runtime|diff vs PR #159|has no kvq\.py' \
     && fix "./glm53 setup   (re-runnable: installs both pinned TensorFold trees; nothing is downloaded twice)"
   g 'no b12x RoCE module' && fix "./glm53 setup (needs gcc + libibverbs-dev), or TFS_ROCE=0 ./glm53 up for NCCL reductions (measured 37.07 vs 41.42 tok/s)"
-  g 'no RoCE v2 GID|NCCL_IB_HCA=' && fix "the hosts file's fabric_ip is not on FABRIC_IFNAME=$FABRIC_IFNAME, or the RDMA device is not ROCE_HCA=$ROCE_HCA: ./glm53 init --hosts ... --force re-detects both"
+  g 'no RoCE v2 GID|NCCL_IB_HCA=' && fix "the hosts file's fabric_ip is not on FABRIC_IFNAME=$FABRIC_IFNAME, or the RDMA device is not ROCE_HCA=$ROCE_HCA: ./glm53 init --force (on rank 0) re-detects both"
   g 'GPU BUSY|GPU busy' && fix "another job holds a GPU: stop it (nvidia-smi on that Spark), or ./glm53 down if it is this server"
   g 'a server rank already runs|PORT [0-9]+ in use' && fix "a server is already up: ./glm53 status, then ./glm53 down"
   g 'LOW MEMORY|MemAvailable [0-9]+ GiB <' && fix "./glm53 fadvise (drops the model files' page cache, which GB10 counts as used), and stop other jobs"
   g 'GiB is free|caches a rank' && fix "./glm53 fadvise, stop other jobs; never lower TF_GLM53_CACHE_RESERVE_GB"
-  g "cannot 'ssh -o BatchMode=yes" && fix "./glm53 init --hosts H0,H1,H2,H3 --force   (prints the commands that let rank 0 ssh to ranks 1-3)"
+  g "cannot 'ssh -o BatchMode=yes" && fix "./glm53 init --force on rank 0   (prints the commands that let rank 0 ssh to ranks 1-3)"
   g 'watchdog flagged|VIOLATION' && fix "a watchdog stopped the cluster (memory floor or swap growth): ./glm53 logs, then ./glm53 down before the next up"
   g 'not validated yet|NOT VALIDATED' && grep -a -q 'error: .*not validated' "$f" && fix "add --allow-unvalidated to run that profile anyway, or use the default ($DEFAULT_PROFILE)"
   g 'pack download failed|drafter download failed' && fix "./glm53 setup again (downloads resume); if transfers stall: HF_HUB_DISABLE_XET=1 ./glm53 setup"
@@ -216,7 +236,7 @@ hint_from() {                                    # hint_from FILE: queue the fix
   g 'no serve view|not the fixed template|does not map lm_head|lm_head\.safetensors missing|no DFlash2 drafter' && fix "./glm53 setup   (rebuilds the serve view)"
   g 'START FAILED|TIMEOUT|FATAL' && fix "./glm53 logs (read rank*.log for [tf_serve] FATAL and the watchdog logs), then ./glm53 down and ./glm53 preflight"
   g 'Permission denied \(|Host key verification failed|Could not resolve hostname|Connection timed out|Connection refused|No route to host' \
-    && fix "ssh failed: ./glm53 init --hosts H0,H1,H2,H3 --force checks every ssh path and prints the commands that fix it"
+    && fix "ssh failed: ./glm53 init --force (on rank 0) checks every ssh path and prints the commands that fix it"
   g 'rsync: (command )?not found|rsync: not found|command not found: rsync' && fix "sudo apt install -y rsync on that Spark (or RECIPE_SYNC=git ./glm53 sync)"
   unset -f g
   return 0
@@ -282,68 +302,273 @@ run_serve() {
 }
 
 # ---- init ---------------------------------------------------------------------------------------------------------
-PROBE='ifn="$1"
-echo "HOST=$(hostname)"
-echo "IP=$(ip -4 -o addr show dev "$ifn" 2>/dev/null | awk "{print \$4}" | cut -d/ -f1 | head -n 1)"
-hca=""; for d in /sys/class/infiniband/*; do [ -e "$d/device/net/$ifn" ] && { hca="${d##*/}"; break; }; done
-echo "HCA=$hca"
-echo "IFACES=$(ip -4 -o addr show 2>/dev/null | awk "\$2 != \"lo\" {split(\$4, a, \"/\"); printf \"%s=%s \", \$2, a[1]}")"
-echo "RSYNC=$(command -v rsync >/dev/null 2>&1 && echo 1 || echo 0)"
-echo "ARCH=$(uname -m)"'
-probe() {                                        # probe TARGET: KEY=VALUE facts about a Spark (script on stdin)
+# Two ways in. `./glm53 init` (the default) runs ON one of the Sparks, which becomes rank 0: tools/discover.sh finds the
+# other three on the ConnectX-7 fabric and checks each over ssh; nobody has to know a host name. `--via SPARK` runs the
+# same discovery on SPARK from a machine that is not a Spark. `--hosts H0,H1,H2,H3` skips discovery (the override).
+DISCOVER="$HERE/tools/discover.sh"
+VIA_CFG="$HERE/ssh_config"                       # written by init --via: ranks 1-3 reached through rank 0 (ProxyJump)
+NV_SWITCH_PLAYBOOK=https://build.nvidia.com/spark/multi-sparks-through-switch
+NV_DISCOVER_URL=https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/refs/heads/main/nvidia/connect-two-sparks/assets/discover-sparks
+RECIPE_URL=https://github.com/vcruz305/GLM-5.3-EXL3-DGX-Spark-recipe.git
+probe() {                                        # probe TARGET: KEY=VALUE facts about a Spark (discover.sh on stdin)
   local t=$1
-  if [[ "$t" == local ]]; then bash -s -- "$FABRIC_IFNAME" <<< "$PROBE"
-  else "${SSH[@]}" "$t" bash -s -- "$(printf %q "$FABRIC_IFNAME")" <<< "$PROBE"; fi
+  if [[ "$t" == local ]]; then bash "$DISCOVER" probe "$FABRIC_IFNAME"
+  else "${SSH[@]}" "$t" bash -s -- probe "$(printf %q "$FABRIC_IFNAME")" < "$DISCOVER"; fi
 }
 kv() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -n 1; }
+fld() { printf '%s\n' "$1" | tr '\t' '\n' | sed -n "s/^$2=//p" | head -n 1; }   # a field of a discover.sh record
+pick_port() {                                    # pick_port CX7: Up with an IPv4 address, enp1s0f* before enP2p1s0f*
+  local e i s h a
+  for e in $1; do
+    IFS=: read -r i s h a <<< "$e"
+    [[ "$s" == Up && -n "$a" ]] || continue
+    if [[ "$i" == enP* ]]; then echo "2 $i"; else echo "1 $i"; fi
+  done | sort -k1,1n -k2,2 | head -n 1 | cut -d' ' -f2
+}
+port_get() {                                     # port_get CX7 IFNAME N: field N of that port (3 = RDMA device, 4 = ip)
+  local e i s h a
+  for e in $1; do
+    IFS=: read -r i s h a <<< "$e"
+    [[ "$i" == "$2" ]] || continue
+    case "$3" in 3) echo "$h" ;; 4) echo "${a%/*}" ;; esac
+    return 0
+  done
+}
 ssh_fix() {                                      # ssh_fix TARGET OUTPUT: the fix for a failed ssh from here
   local t=$1 out=$2
   case "$out" in
-    *"Host key verification failed"*) fix "ssh -o StrictHostKeyChecking=accept-new $t true   # accept $t's host key once" ;;
+    *"Host key verification failed"*) fix "ssh -o StrictHostKeyChecking=accept-new $t true   # accept $t's host key once (ssh-keygen -R $t first if it changed)" ;;
     *"Permission denied"*) fix "ssh-copy-id $t   # passwordless ssh from here to $t (ssh-keygen -t ed25519 first if you have no key)" ;;
-    *"Could not resolve hostname"*) fix "add a Host entry for $t to ~/.ssh/config (HostName, User), or pass user@ip in --hosts" ;;
+    *"Could not resolve hostname"*) fix "$t does not resolve: use the Spark's mDNS name (<hostname>.local) or its IP, as user@host; see NVIDIA's https://build.nvidia.com/spark/connect-to-your-spark" ;;
     *) fix "$SSHP $t true   # must succeed without a password prompt (is $t up and reachable?)" ;;
   esac
+}
+nv_ssh_fix() {                                   # nv_ssh_fix RANK0_TARGET PEER...: let rank 0 ssh to the peers
+  local t0=$1 where; shift
+  if [[ "$t0" == local ]]; then where="on this Spark"; else where="on $t0 (rank 0)"; fi
+  fix "passwordless ssh from rank 0 to the other Sparks is missing. Once, $where, as your normal user (not sudo), in a terminal: it asks for your password on each Spark, so the user types it, never an agent:"
+  fix "    curl -fsSLO $NV_DISCOVER_URL && bash ./discover-sparks"
+  fix "  (NVIDIA's discover-sparks from the Connect Two Sparks / Multi Sparks Through a Switch playbooks: it finds the Sparks over avahi on the ConnectX-7 ports, needs avahi-utils (sudo apt install -y avahi-utils), and puts one shared key, ~/.ssh/id_ed25519_shared, on all of them)"
+  if [[ $# == 1 ]]; then fix "  or by hand, $where: ssh-copy-id $1   (ssh-keygen -t ed25519 first if ~/.ssh has no key)"
+  else fix "  or by hand, $where: for ip in $*; do ssh-copy-id \$ip; done   (ssh-keygen -t ed25519 first if ~/.ssh has no key; one password per Spark)"; fi
 }
 peer_fix() {                                     # peer_fix PEER_TARGET PEER_ADDR OUTPUT: let rank 0 ssh to that peer
   local tr=$1 p=$2 out=$3 t0=${T[0]}
   case "$out" in
     *"Host key verification failed"*)
-      fix "$(on "$t0" "ssh -o StrictHostKeyChecking=accept-new $p true")   # rank 0 accepts $p's host key once" ;;
-    *)
-      fix "$(on "$t0" 'test -f ~/.ssh/id_ed25519 || ssh-keygen -q -t ed25519 -N "" -f ~/.ssh/id_ed25519')   # rank 0's key"
-      local cat0 add
-      if [[ "$t0" == local ]]; then cat0="cat ~/.ssh/id_ed25519.pub"; else cat0="$SSHP $t0 'cat ~/.ssh/id_ed25519.pub'"; fi
-      add='mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
-      if [[ "$tr" == local ]]; then fix "$cat0 | sh -c '$add'   # authorize it here"
-      else fix "$cat0 | $SSHP $tr '$add'   # authorize it on $tr"; fi
-      fix "$(on "$t0" "ssh -o StrictHostKeyChecking=accept-new $p true")   # rank 0 -> $p, once" ;;
+      fix "$(on "$t0" "ssh-keygen -R $p; ssh -o StrictHostKeyChecking=accept-new $p true")   # rank 0 accepts $p's (new) host key" ;;
+    *) nv_ssh_fix "$t0" "$p" ;;
   esac
 }
 split4() {                                       # split4 LIST N: comma list -> SPLIT array of exactly N entries
   local IFS=,; SPLIT=($1)
   [[ ${#SPLIT[@]} == "$2" ]] || fail "'$1' must list exactly $2 comma-separated entries"
 }
+not_a_spark() {                                  # init without --hosts / --via on a machine that is not a Spark
+  echo >&2
+  echo "This machine ($(hostname)) is not a DGX Spark, so it cannot see the Sparks' ConnectX-7 fabric. Either:" >&2
+  echo "  1. run init on any one of the four Sparks (it becomes rank 0 and serves the API):" >&2
+  echo "       ssh <user>@<spark-hostname>.local     (its mDNS name, or its IP; NVIDIA Sync can also open a terminal on it)" >&2
+  echo "       git clone $RECIPE_URL && cd GLM-5.3-EXL3-DGX-Spark-recipe && ./glm53 init" >&2
+  echo "  2. or from here, through any one Spark you can ssh to:   ./glm53 init --via <that Spark's ssh target>" >&2
+  echo "  3. or name all four yourself, rank 0 first:              ./glm53 init --hosts H0,H1,H2,H3" >&2
+  fail "init needs a Spark: nothing was written"
+}
+write_hosts() {                                  # write_hosts HOW: the hosts file from T, IPS, PEERCOL
+  local body r
+  body="# written by ./glm53 init on $(date +%Y-%m-%d) ($1; FABRIC_IFNAME=$FABRIC_IFNAME, ROCE_HCA=$ROCE_HCA)
+# rank  ssh_target  fabric_ip  [peer_ssh: how rank 0's watchdog reaches this rank; default the fabric IP]"
+  for r in 0 1 2 3; do body+=$'\n'"$r  ${T[$r]}  ${IPS[$r]}${PEERCOL[$r]:+  ${PEERCOL[$r]}}"; done
+  if [[ "$DRY" == 1 ]]; then printf '%s\n' "$body" | sed 's/^/  DRY hosts: /'
+  else printf '%s\n' "$body" > "$HOSTS_FILE"; printf '%s\n' "$body" | sed 's/^/  /' >&2; fi
+}
+unset_cluster() {                                # unset_cluster KEY: drop a setting from cluster.env
+  [[ "$DRY" == 1 || ! -f "$CLUSTER_ENV" ]] && return 0
+  grep -q "^$1=" "$CLUSTER_ENV" || return 0
+  local tmp; tmp="$(mktemp "$CLUSTER_ENV.XXXXXX")" || return 0
+  grep -v "^$1=" "$CLUSTER_ENV" > "$tmp"; mv "$tmp" "$CLUSTER_ENV"
+}
+write_via_config() {                             # the ssh config that reaches ranks 1-3 through rank 0 ($OPT_VIA)
+  local base="$HOME/.ssh/config" r body
+  [[ -n "${SSH_CONFIG:-}" && "$SSH_CONFIG" != "$VIA_CFG" ]] && base="$SSH_CONFIG"   # your own -F file, if you use one
+  body="# written by ./glm53 init --via $OPT_VIA on $(date +%Y-%m-%d): ranks 1-3 are reached through rank 0 ($OPT_VIA) over
+# the ConnectX-7 fabric (ProxyJump). ./glm53 and serve.sh use this file (SSH_CONFIG in cluster.env); it includes your own
+# ssh config for everything else. Delete it, and SSH_CONFIG from cluster.env, to stop using it."
+  for r in 1 2 3; do body+=$'\n'"Host glm53-rank$r"$'\n'"  HostName ${IPS[$r]}"$'\n'"  ProxyJump $OPT_VIA"; done
+  body+=$'\n'"Host *"$'\n'"  Include $base"$'\n'"  Include /etc/ssh/ssh_config"
+  if [[ "$DRY" == 1 ]]; then printf '%s\n' "$body" | sed "s|^|  DRY $VIA_CFG: |"; else printf '%s\n' "$body" > "$VIA_CFG"; fi
+}
 
-cmd_init() {
-  [[ -n "$OPT_HOSTS" ]] || fail "init needs --hosts H0,H1,H2,H3: the four Sparks' ssh targets in rank order (rank 0 serves the API; 'local' = this machine)"
+init_discover() {
+  [[ -z "$OPT_IPS$OPT_PEERS" ]] || fail "--fabric-ips and --peer-ssh go with --hosts; ./glm53 init alone discovers both"
+  if [[ -f "$HOSTS_FILE" && "$OPT_FORCE" != 1 && "$DRY" != 1 ]]; then
+    fail "$HOSTS_FILE already exists. Re-run with --force to replace it"
+  fi
+  local via="$OPT_VIA" where="this machine" r
+  [[ -n "$via" ]] && where="$via"
+  T=(local "" "" ""); IPS=("" "" "" ""); PEERCOL=("" "" "" "")
+  [[ -n "$via" ]] && T[0]="$via"
+  say "1/3 discovering the four Sparks on the ConnectX-7 fabric from $where (rank 0: it serves the API)"
+  if [[ "$DRY" == 1 ]]; then
+    [[ -n "$via" ]] && echo "DRY [here]: ${SSH[*]} $via bash -s -- discover $USER_IFNAME  < $TP4/tools/discover.sh   (the steps below run on $via)"
+    FABRIC_IFNAME= DRY_RUN=1 bash "$DISCOVER" discover "$USER_IFNAME"
+    echo "DRY: keep the candidates whose GPU is a GB10, one per /etc/machine-id; exactly three are required; ranks 1-3 in fabric-IP order"
+    IPS=("<fabric IP of ${via:-this Spark}>" "<lowest peer fabric IP>" "<second peer fabric IP>" "<highest peer fabric IP>")
+    for r in 1 2 3; do if [[ -n "$via" ]]; then T[$r]="glm53-rank$r"; PEERCOL[$r]="${IPS[$r]}"; else T[$r]="${IPS[$r]}"; fi; done
+    say "2/3 hosts file $HOSTS_FILE"
+    FABRIC_IFNAME="<the fabric port>" ROCE_HCA="<its RDMA device>" write_hosts "discovered"
+    set_cluster FABRIC_IFNAME "<the fabric port>"
+    set_cluster ROCE_HCA "<its RDMA device>"
+    if [[ -n "$via" ]]; then
+      write_via_config; set_cluster SSH_CONFIG "$VIA_CFG"
+      say "3/3 ssh from here to ranks 1-3 through $via"
+      for r in 1 2 3; do echo "DRY [here]: ssh -F $VIA_CFG -o BatchMode=yes -o ConnectTimeout=20 glm53-rank$r true"; done
+    else
+      say "3/3 rank 0 is this Spark: discovery already checked ssh -o BatchMode=yes to ranks 1-3"
+    fi
+    return 0
+  fi
+
+  local out
+  if [[ -z "$via" ]]; then
+    out="$(FABRIC_IFNAME= bash "$DISCOVER" discover "$USER_IFNAME")"   # only a port you named, not cluster.env's
+  else
+    out="$("${SSH[@]}" "$via" true 2>&1)" || {
+      echo "  ssh $via failed: $(printf '%s\n' "$out" | grep -v '^$' | tail -n 1)" >&2
+      ssh_fix "$via" "$out"; print_fixes; fail "cannot reach $via over ssh without a password: nothing was written"; }
+    out="$("${SSH[@]}" "$via" bash -s -- discover "$(printf %q "$USER_IFNAME")" < "$DISCOVER")"
+  fi
+  local line S="" peers=() fails=() others=() errs=() tab=$'\t' swept=1 p
+  while IFS= read -r line; do
+    case "${line%%"$tab"*}" in
+      SELF) S="$line" ;; PEER) peers+=("$line") ;; FAIL) fails+=("$line") ;; OTHER) others+=("$line") ;;
+      NOTE) echo "  note: $(fld "$line" msg)" >&2; [[ "$line" == *"no ping sweep"* ]] && swept=0 ;;
+      ERROR) errs+=("$line") ;;
+    esac
+  done <<< "$out"
+  # peers in fabric-IP order (rank 1 = the lowest address)
+  mapfile -t peers < <(for p in ${peers[@]+"${peers[@]}"}; do printf '%s\t%s\n' "$(fld "$p" ip)" "$p"; done \
+                       | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | cut -f2-)
+  if [[ ${#errs[@]} -gt 0 ]]; then
+    local e="${errs[0]}"
+    echo "  $(fld "$e" msg)" >&2
+    case "$(fld "$e" code)" in
+      NOT_SPARK)
+        [[ -z "$via" ]] && not_a_spark
+        fix "--via must name one of the four Sparks (an ssh target of a GB10 machine); $via is not one" ;;
+      NO_CX7) fix "this does not look like a DGX Spark (no ConnectX-7 port): run ./glm53 init on one of the four" ;;
+      NO_UP) fix "cable the same QSFP port of all four Sparks to one switch (four Sparks need a switch), then check that ibdev2netdev shows it (Up): $NV_SWITCH_PLAYBOOK" ;;
+      NO_IPV4) fix "give that ConnectX-7 port an IPv4 address on all four Sparks: NVIDIA Sync's Cluster Assistant (https://docs.nvidia.com/sync/latest/cluster-assistant.html) or step 4 of $NV_SWITCH_PLAYBOOK; FABRIC_IFNAME=<port> ./glm53 init picks another port" ;;
+      TOO_MANY|SAME_MID) fix "name the four Sparks yourself, rank 0 first: ./glm53 init --hosts local,<ip>,<ip>,<ip> --force" ;;
+    esac
+    print_fixes; fail "init stopped before writing $HOSTS_FILE"
+  fi
+  [[ -n "$S" ]] || fail "discovery printed nothing usable (above): nothing was written"
+  local IF SIP SHCA ip
+  IF="$(fld "$S" if)"; SIP="$(fld "$S" ip)"; SHCA="$(fld "$S" hca)"
+  [[ -n "$via" ]] || where="this Spark"
+  echo "  rank 0: $(fld "$S" host) ($where), $(fld "$S" gpu), fabric $SIP/$(fld "$S" prefix) on $IF, RDMA device ${SHCA:-none}" >&2
+  for p in ${peers[@]+"${peers[@]}"}; do
+    echo "  found:  $(fld "$p" host) $(fld "$p" ip), $(fld "$p" gpu), RDMA device $(fld "$p" hca), ssh $(fld "$p" ssh) as $(fld "$p" user): ok" >&2
+  done
+  for p in ${others[@]+"${others[@]}"}; do echo "  not a Spark (not used): $(fld "$p" ip) $(fld "$p" host), GPU '$(fld "$p" gpu)'" >&2; done
+  for p in ${fails[@]+"${fails[@]}"}; do echo "  on the fabric, ssh -o BatchMode=yes failed: $(fld "$p" ip): $(fld "$p" why)" >&2; done
+  local n=${#peers[@]}
+  if (( n > 3 )); then
+    local all=""; for p in ${peers[@]+"${peers[@]}"}; do all+="${all:+,}$(fld "$p" ip)"; done
+    fix "this recipe runs on exactly four Sparks and $((n + 1)) answered ($SIP + $all). Choose four, rank 0 first: ./glm53 init --hosts local,<ip>,<ip>,<ip> --force"
+    print_fixes; fail "init stopped before writing $HOSTS_FILE: found $n other Sparks, need exactly 3"
+  fi
+  if (( n < 3 )); then
+    local denied=() why explained=0 nossh=()
+    for p in ${fails[@]+"${fails[@]}"}; do
+      ip="$(fld "$p" ip)"; why="$(fld "$p" why)"
+      case "$why" in
+        *"Permission denied"*) denied+=("$ip"); explained=1 ;;
+        *"Host key verification failed"*) explained=1
+          fix "$(on "${T[0]}" "ssh-keygen -R $ip")   # $ip's host key changed (a reinstalled Spark?); init then accepts the new one" ;;
+        *"no IPv4 address on"*|*"is outside"*) explained=1; fix "$why: $NV_SWITCH_PLAYBOOK" ;;
+        *) nossh+=("$ip ($why)") ;;
+      esac
+    done
+    [[ ${#denied[@]} -gt 0 ]] && nv_ssh_fix "${T[0]}" ${denied[@]+"${denied[@]}"}
+    if [[ "$explained" == 0 ]]; then
+      fix "only $n of the other three Sparks answered on $IF ($SIP/$(fld "$S" prefix)). Check that all four are on, cabled to the switch on the same ConnectX-7 port, and that 'ip -br addr' on each shows an address on $IF in that subnet ($NV_SWITCH_PLAYBOOK)"
+      [[ ${#nossh[@]} == 0 ]] || fix "on the fabric without ssh (a switch, or a Spark whose sshd is down): ${nossh[*]+${nossh[*]}}"
+      [[ "$swept" == 1 ]] || fix "this subnet is too large to ping-sweep (a 169.254.x.x/16 link-local fabric): install avahi-utils (sudo apt install -y avahi-utils) so init can use mDNS, or ping each Spark's fabric IP once from here, then run init again"
+      fix "or name them: ./glm53 init --hosts local,<ip>,<ip>,<ip> --force"
+    fi
+    fix "then: ./glm53 init --force"
+    print_fixes; fail "init stopped before writing $HOSTS_FILE: found $n of the other three Sparks"
+  fi
+  [[ ${#fails[@]} == 0 ]] || echo "  note: the addresses above that failed ssh are not used (a switch, or a fifth machine on the fabric)" >&2
+
+  # ranks 1-3 by fabric IP
+  local hcas=("$SHCA")
+  IPS[0]="$SIP"
+  for r in 1 2 3; do
+    p="${peers[$((r - 1))]}"
+    IPS[$r]="$(fld "$p" ip)"; hcas[$r]="$(fld "$p" hca)"
+    if [[ -n "$via" ]]; then T[$r]="glm53-rank$r"; [[ "$(fld "$p" ssh)" != "${IPS[$r]}" ]] && PEERCOL[$r]="$(fld "$p" ssh)"
+    else T[$r]="$(fld "$p" ssh)"; [[ "${T[$r]}" != "${IPS[$r]}" ]] && PEERCOL[$r]="${T[$r]}"; fi
+    [[ "$(fld "$p" rsync)" == 1 ]] || fix "rank $r (${IPS[$r]}) has no rsync: sudo apt install -y rsync there (./glm53 sync and setup --download-once use it)"
+    [[ -n "${hcas[$r]}" ]] || echo "  rank $r: warning: no RDMA device behind $IF: RoCE reductions will refuse (TFS_ROCE=0 runs NCCL)" >&2
+  done
+  FABRIC_IFNAME="$IF"
+  if [[ -n "$SHCA" && "${hcas[1]}" == "$SHCA" && "${hcas[2]}" == "$SHCA" && "${hcas[3]}" == "$SHCA" ]]; then
+    ROCE_HCA="$SHCA"
+  elif [[ -n "$SHCA" ]]; then
+    echo "  warning: the RDMA device behind $IF differs between the Sparks (${hcas[*]}); recording rank 0's ($SHCA)" >&2
+    ROCE_HCA="$SHCA"
+  fi
+  say "2/3 hosts file $HOSTS_FILE (ranks 1-3 in fabric-IP order)"
+  write_hosts "discovered from $(fld "$S" host)"
+  set_cluster FABRIC_IFNAME "$FABRIC_IFNAME"
+  set_cluster ROCE_HCA "$ROCE_HCA"
+  if [[ -z "$via" ]]; then
+    say "3/3 rank 0 is this Spark: discovery already checked ssh -o BatchMode=yes to ranks 1-3"
+    if [[ "${SSH_CONFIG:-}" == "$VIA_CFG" ]]; then unset_cluster SSH_CONFIG; rm -f "$VIA_CFG"; fi
+    print_fixes
+    say "init OK. Run every ./glm53 command on this Spark. Next: ./glm53 setup --download-once   (one 319 GB download, copied over the fabric)"
+    return 0
+  fi
+  write_via_config
+  set_cluster SSH_CONFIG "$VIA_CFG"
+  say "3/3 ssh from here to ranks 1-3 through $via (ProxyJump: needs your key on every Spark, not only on $via)"
+  local bad=0
+  for r in 1 2 3; do
+    out="$(ssh -F "$VIA_CFG" -o BatchMode=yes -o ConnectTimeout=20 "${T[$r]}" true 2>&1)"
+    if [[ $? == 0 ]]; then echo "  here -> rank $r (${IPS[$r]} via $via): ok" >&2
+    else
+      bad=1; echo "  here -> rank $r (${IPS[$r]} via $via): FAILED: $(printf '%s\n' "$out" | grep -v '^$' | tail -n 1)" >&2
+      fix "ssh-copy-id -o ProxyJump=$via ${IPS[$r]}   # your key from this machine on rank $r (it asks for your password there once)"
+    fi
+  done
+  print_fixes
+  [[ "$bad" == 0 ]] || fail "the hosts file is written, but this machine cannot reach every Spark through $via yet: run the commands above, then ./glm53 init --via $via --force"
+  say "init OK. Drive the cluster from here (or from $via). Next: ./glm53 setup --download-once"
+}
+
+init_named() {
+  [[ -z "$OPT_VIA" ]] || fail "--via and --hosts do not go together: --hosts names all four, --via discovers them"
   split4 "$OPT_HOSTS" 4; T=("${SPLIT[@]}")
   local r s
   for r in 0 1 2; do for ((s = r + 1; s < 4; s++)); do
     [[ "${T[$r]}" != "${T[$s]}" ]] || fail "--hosts lists ${T[$r]} twice"
   done; done
-  local IPS=("" "" "" "") PEERS=("" "" "" "") HOSTN=("" "" "" "") HCAS=("" "" "" "")
+  IPS=("" "" "" ""); PEERCOL=("" "" "" "")
+  local HOSTN=("" "" "" "") HCAS=("" "" "" "") MIDS=("" "" "" "") OUTS=("" "" "" "")
   if [[ -n "$OPT_IPS" ]]; then split4 "$OPT_IPS" 4; IPS=("${SPLIT[@]}"); fi
-  if [[ -n "$OPT_PEERS" ]]; then split4 "$OPT_PEERS" 3; PEERS=("" "${SPLIT[@]}"); fi
+  if [[ -n "$OPT_PEERS" ]]; then split4 "$OPT_PEERS" 3; PEERCOL=("" "${SPLIT[@]}"); fi
   if [[ -f "$HOSTS_FILE" && "$OPT_FORCE" != 1 && "$DRY" != 1 ]]; then
     fail "$HOSTS_FILE already exists. Re-run with --force to replace it"
   fi
-  local bad=0 out ip hca
-  say "1/3 ssh from here to each Spark, and its fabric address on FABRIC_IFNAME=$FABRIC_IFNAME"
+  local bad=0 out ip hca gpu cx port
+  say "1/3 ssh from here to each Spark: its GPU, /etc/machine-id and ConnectX-7 ports"
   for r in 0 1 2 3; do
     if [[ "$DRY" == 1 ]]; then
-      if [[ "${T[$r]}" == local ]]; then echo "DRY [local]: bash -s -- $FABRIC_IFNAME  < probe (hostname, IPv4 on $FABRIC_IFNAME, its RDMA device, rsync)"
-      else echo "DRY [${T[$r]}]: ${SSH[*]} ${T[$r]} bash -s -- $FABRIC_IFNAME  < probe (hostname, IPv4 on $FABRIC_IFNAME, its RDMA device, rsync)"; fi
+      if [[ "${T[$r]}" == local ]]; then echo "DRY [local]: bash $TP4/tools/discover.sh probe $FABRIC_IFNAME   (hostname, /etc/machine-id, GPU, ConnectX-7 ports and addresses, rsync)"
+      else echo "DRY [${T[$r]}]: ${SSH[*]} ${T[$r]} bash -s -- probe $FABRIC_IFNAME  < $TP4/tools/discover.sh   (hostname, /etc/machine-id, GPU, ConnectX-7 ports and addresses, rsync)"; fi
       [[ -n "${IPS[$r]}" ]] || IPS[$r]="<fabric IP of ${T[$r]}>"
       continue
     fi
@@ -352,24 +577,46 @@ cmd_init() {
       bad=1; echo "  rank $r: ssh to ${T[$r]} failed: $(printf '%s\n' "$out" | grep -v '^$' | tail -n 1)" >&2
       ssh_fix "${T[$r]}" "$out"; continue
     fi
-    HOSTN[$r]="$(kv "$out" HOST)"; ip="$(kv "$out" IP)"; hca="$(kv "$out" HCA)"; HCAS[$r]="$hca"
+    OUTS[$r]="$out"
+  done
+  # the fabric port: FABRIC_IFNAME if you set it, else the port rank 0 reports Up with an IPv4 address (as discovery does)
+  if [[ "$DRY" != 1 && -z "$USER_IFNAME" && -n "${OUTS[0]}" ]]; then
+    port="$(pick_port "$(kv "${OUTS[0]}" CX7)")"
+    if [[ -n "$port" && "$port" != "$FABRIC_IFNAME" ]]; then
+      echo "  fabric port: $port (Up with an IPv4 address on rank 0; FABRIC_IFNAME=<port> picks another)" >&2
+      FABRIC_IFNAME="$port"
+    fi
+  fi
+  for r in 0 1 2 3; do
+    [[ "$DRY" == 1 || -z "${OUTS[$r]}" ]] && continue
+    out="${OUTS[$r]}"; cx="$(kv "$out" CX7)"
+    HOSTN[$r]="$(kv "$out" HOST)"; MIDS[$r]="$(kv "$out" MID)"; gpu="$(kv "$out" GPU)"
+    if [[ -n "$cx" ]]; then ip="$(port_get "$cx" "$FABRIC_IFNAME" 4)"; hca="$(port_get "$cx" "$FABRIC_IFNAME" 3)"
+    else ip="$(kv "$out" IP)"; hca="$(kv "$out" HCA)"; fi
+    HCAS[$r]="$hca"
+    if [[ "$gpu" != *GB10* ]]; then
+      bad=1; echo "  rank $r: ${T[$r]} (${HOSTN[$r]}) is not a DGX Spark: GPU '${gpu:-none}'" >&2
+      fix "--hosts must name four DGX Sparks (GB10); replace ${T[$r]}"; continue
+    fi
     if [[ -n "${IPS[$r]}" ]]; then
       [[ -z "$ip" || "$ip" == "${IPS[$r]}" ]] || echo "  rank $r: note: ${T[$r]} has $ip on $FABRIC_IFNAME; using --fabric-ips ${IPS[$r]}" >&2
     elif [[ -n "$ip" ]]; then
       IPS[$r]="$ip"
     else
       bad=1
-      echo "  rank $r: ${T[$r]} (${HOSTN[$r]}) has no IPv4 address on FABRIC_IFNAME=$FABRIC_IFNAME. Its addresses: $(kv "$out" IFACES)" >&2
+      echo "  rank $r: ${T[$r]} (${HOSTN[$r]}) has no IPv4 address on FABRIC_IFNAME=$FABRIC_IFNAME. Its ConnectX-7 ports: ${cx:-none}" >&2
       fix "FABRIC_IFNAME=<the ConnectX-7 port that carries the fabric> ./glm53 init --hosts $OPT_HOSTS --force   (or --fabric-ips A,B,C,D)"
       continue
     fi
-    echo "  rank $r: ${T[$r]} (${HOSTN[$r]}) fabric ${IPS[$r]} on $FABRIC_IFNAME, RDMA device ${hca:-none}, $(kv "$out" ARCH)" >&2
+    echo "  rank $r: ${T[$r]} (${HOSTN[$r]}) $gpu, fabric ${IPS[$r]} on $FABRIC_IFNAME, RDMA device ${hca:-none}, $(kv "$out" ARCH)" >&2
     [[ -n "$hca" ]] || echo "  rank $r: warning: no RDMA device behind $FABRIC_IFNAME on ${T[$r]}: RoCE reductions will refuse (TFS_ROCE=0 runs NCCL)" >&2
     [[ "$(kv "$out" RSYNC)" == 1 ]] || fix "$(on "${T[$r]}" 'sudo apt install -y rsync')   # ./glm53 sync / setup --download-once use it"
   done
   if [[ "$DRY" != 1 ]]; then
     for r in 0 1 2; do for ((s = r + 1; s < 4; s++)); do
       [[ -z "${IPS[$r]}" || "${IPS[$r]}" != "${IPS[$s]}" ]] || { bad=1; echo "  ranks $r and $s share the fabric IP ${IPS[$r]}" >&2; }
+      [[ -z "${MIDS[$r]}" || "${MIDS[$r]}" != "${MIDS[$s]}" ]] \
+        || { bad=1; echo "  ranks $r and $s are the same machine (/etc/machine-id ${MIDS[$r]:0:12}...): --hosts needs four different Sparks" >&2; }
     done; done
     # one RDMA device name for all four (the recipe sets one ROCE_HCA); adopt the detected one if it differs
     if [[ -n "${HCAS[0]}" && "${HCAS[0]}" == "${HCAS[1]}" && "${HCAS[0]}" == "${HCAS[2]}" && "${HCAS[0]}" == "${HCAS[3]}" \
@@ -381,12 +628,7 @@ cmd_init() {
   if [[ "$bad" == 1 ]]; then print_fixes; fail "init stopped before writing $HOSTS_FILE: fix the above, then run it again"; fi
 
   say "2/3 hosts file $HOSTS_FILE"
-  local body
-  body="# written by ./glm53 init on $(date +%Y-%m-%d) (FABRIC_IFNAME=$FABRIC_IFNAME, ROCE_HCA=$ROCE_HCA)
-# rank  ssh_target  fabric_ip  [peer_ssh: how rank 0's watchdog reaches this rank; default the fabric IP]"
-  for r in 0 1 2 3; do body+=$'\n'"$r  ${T[$r]}  ${IPS[$r]}${PEERS[$r]:+  ${PEERS[$r]}}"; done
-  if [[ "$DRY" == 1 ]]; then printf '%s\n' "$body" | sed 's/^/  DRY hosts: /'
-  else printf '%s\n' "$body" > "$HOSTS_FILE"; printf '%s\n' "$body" | sed 's/^/  /' >&2; fi
+  write_hosts "--hosts"
   set_cluster FABRIC_IFNAME "$FABRIC_IFNAME"
   set_cluster ROCE_HCA "$ROCE_HCA"
   [[ -n "${SSH_CONFIG:-}" ]] && set_cluster SSH_CONFIG "$SSH_CONFIG"
@@ -394,7 +636,7 @@ cmd_init() {
   say "3/3 ssh from rank 0 (${T[0]}) to ranks 1-3: its watchdog stops all four through it, and --download-once copies over it"
   local p
   for r in 1 2 3; do
-    p="${PEERS[$r]:-${IPS[$r]}}"
+    p="${PEERCOL[$r]:-${IPS[$r]}}"
     if [[ "$DRY" == 1 ]]; then hrun "${T[0]}" "ssh -o BatchMode=yes -o ConnectTimeout=5 $p true"; continue; fi
     out="$(hrun "${T[0]}" "ssh -o BatchMode=yes -o ConnectTimeout=5 $(printf %q "$p") true" 2>&1)"
     if [[ $? == 0 ]]; then echo "  rank 0 -> rank $r ($p): ok" >&2
@@ -403,7 +645,11 @@ cmd_init() {
   [[ "$DRY" == 1 ]] && return 0
   if [[ "$bad" == 1 ]]; then print_fixes; fail "the hosts file is written, but rank 0 cannot reach every peer yet: run the commands above, then ./glm53 init --hosts $OPT_HOSTS --force"; fi
   print_fixes
-  say "init OK. Next: ./glm53 setup   (or ./glm53 setup --download-once: one 319 GB download, copied over the fabric)"
+  say "init OK. Next: ./glm53 setup --download-once   (one 319 GB download, copied over the fabric)"
+}
+
+cmd_init() {
+  if [[ -n "$OPT_HOSTS" ]]; then init_named; else init_discover; fi
 }
 
 # ---- sync: this clone onto every Spark --------------------------------------------------------------------------------
@@ -436,7 +682,7 @@ cmd_sync() {
           if [[ "$DRY" == 1 ]]; then echo "DRY [local]: mkdir -p $(local_path "$REMOTE_REPO") && ${a[*]}"; continue; fi
           mkdir -p "$(local_path "$REMOTE_REPO")" && "${a[@]}" || { bad=1; fix "rsync -a $RECIPE_ROOT/ $(local_path "$REMOTE_REPO")/"; }
         else
-          a+=(-e "${SSH[*]}" "--rsync-path=mkdir -p $(printf %q "$dest") && rsync" "$RECIPE_ROOT/" "$t:$dest/")
+          a+=(-e "$(ssh_e)" "--rsync-path=mkdir -p $(printf %q "$dest") && rsync" "$RECIPE_ROOT/" "$t:$dest/")
           if [[ "$DRY" == 1 ]]; then echo "DRY [$t]: ${a[*]}"; continue; fi
           "${a[@]}" || { bad=1; echo "  rank $r: rsync to $t failed" >&2; fix "$(on "$t" 'sudo apt install -y rsync')   # if rsync is missing there"; }
         fi ;;
@@ -516,7 +762,7 @@ copy_models() {                                  # rank 0's pack, drafter and lm
     wait "${pids[$i]}" || { bad=1; echo "FAIL  copy to rank ${ranks[$i]}: $(last_line "${logs[$i]}") (log ${logs[$i]})" >&2; hint_from "${logs[$i]}"; }
   done
   if [[ "$bad" == 1 ]]; then
-    fix "rank 0 must ssh to ranks 1-3 without a password: ./glm53 init --hosts ... --force prints how; then ./glm53 setup --download-once again (rsync resumes)"
+    fix "rank 0 must ssh to ranks 1-3 without a password: ./glm53 init --force prints how; then ./glm53 setup --download-once again (rsync resumes)"
     print_fixes; return 1
   fi
   say "copy done"
@@ -568,7 +814,7 @@ cmd_up() {
 GLM-5.3 is up (profile $PROFILE): http://127.0.0.1:$TFS_HTTP_PORT/v1 on rank 0 (${H_SSH[0]}), model id $TFS_NAME
   ./glm53 chat "Explain RoCE in two sentences."     one request, streamed, with the engine's stats
   ./glm53 smoke                                     /v1 checks;  ./glm53 bench: the 6 reference prompts
-  ./glm53 tunnel --open                             the API on this machine's 127.0.0.1:$TFS_HTTP_PORT
+  ./glm53 tunnel                                    how to reach it from another machine (ssh -L)
   ./glm53 down                                      stop all four
 EOF
 }
@@ -582,7 +828,14 @@ cmd_chat() {
 }
 cmd_tunnel() {
   need_hosts
-  if [[ "${H_SSH[0]}" == local ]]; then echo "rank 0 is this machine: http://127.0.0.1:$TFS_HTTP_PORT/v1"; return 0; fi
+  if [[ "${H_SSH[0]}" == local ]]; then
+    local lan; lan="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n 1)"
+    [[ -n "$lan" ]] || lan="<this Spark's IP>"
+    echo "rank 0 is this machine: the API is http://127.0.0.1:$TFS_HTTP_PORT/v1 here. From a laptop on the same network:"
+    echo "  ssh -N -L $TFS_HTTP_PORT:127.0.0.1:$TFS_HTTP_PORT $(id -un)@$(hostname).local    # mDNS name; or $(id -un)@$lan"
+    echo "  then http://127.0.0.1:$TFS_HTTP_PORT/v1 on the laptop (Ctrl-C closes the tunnel)"
+    return 0
+  fi
   local c=("${SSH[@]}" -N -o ExitOnForwardFailure=yes -L "$TFS_HTTP_PORT:127.0.0.1:$TFS_HTTP_PORT" "${H_SSH[0]}")
   if [[ "$OPT_OPEN" == 1 && "$DRY" != 1 ]]; then
     say "tunnel open: http://127.0.0.1:$TFS_HTTP_PORT/v1 here -> rank 0 (${H_SSH[0]}); Ctrl-C closes it"

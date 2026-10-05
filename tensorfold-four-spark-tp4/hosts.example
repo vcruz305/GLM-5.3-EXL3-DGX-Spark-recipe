@@ -1,12 +1,15 @@
-# Four DGX Sparks, one rank each. `./glm53 init --hosts H0,H1,H2,H3` writes `hosts` (git-ignored) for you, detecting
-# the fabric IPs; by hand, copy this file and edit it:
+# Four DGX Sparks, one rank each. `./glm53 init`, run on one of the Sparks, writes `hosts` (git-ignored) for you: it
+# finds the other three on the ConnectX-7 fabric (`--hosts H0,H1,H2,H3` names them instead). By hand, copy this file
+# and edit it:
 #   cp tensorfold-four-spark-tp4/hosts.example tensorfold-four-spark-tp4/hosts
 #
 # columns: rank  ssh_target  fabric_ip  [peer_ssh]
 #   rank        0..3. Rank 0 serves the /v1 API and is the rendezvous master; ranks 1-3 start first.
-#   ssh_target  how serve.sh reaches the Spark from where you run it (an ~/.ssh/config alias, user@host, or `local`
-#               for the machine serve.sh runs on).
-#   fabric_ip   the Spark's IPv4 address on the ConnectX-7 port (FABRIC_IFNAME, default enp1s0f0np0). NCCL, the RoCE
+#   ssh_target  how serve.sh reaches the Spark from where you run it (an ~/.ssh/config alias, user@host, an IP, or
+#               `local` for the machine serve.sh runs on). `./glm53 init` writes `local` for rank 0 and the fabric
+#               IPs for ranks 1-3.
+#   fabric_ip   the Spark's IPv4 address on the ConnectX-7 port (FABRIC_IFNAME: init records the port it found in
+#               cluster.env; env.sh's default is enp1s0f0np0). NCCL, the RoCE
 #               setup and the rendezvous use it; tools/b12x_env.sh resolves the RoCE v2 GID of this address.
 #   peer_ssh    optional: how rank 0's watchdog reaches this rank over ssh (default: fabric_ip). Rank 0 must be able
 #               to `ssh -o BatchMode=yes <peer_ssh>` ranks 1-3 without a password: it stops all four on a breach.
