@@ -163,11 +163,12 @@ Requirements, profiles, guards, every knob and the manual path (`setup.sh` on ea
   pack needs: per-layer handle and page-cache release, fail-closed fp16 → bf16 cast; the default profiles) and
   [`glm53-kv-int4`](https://github.com/vcruz305/TensorFold/tree/glm53-kv-int4) @ `0c858e3` (those plus the int4 / int8
   latent KV cache; `int4-262k`).
-- **The same changes are prepared as PR branches on the fork, to be opened into PR #159's branch:**
-  `glm53-gb10-loading` (GB10 loading fixes), `glm53-dflash-default` (DFlash2 by default),
-  `glm53-pinned-tiles` (pinned tile table), `glm53-roce-health` (RoCE health check) and
-  `glm53-kv-cache-int4` (the int4 / int8 KV cache, stacked on `glm53-gb10-loading`). PRs to be linked when they are
-  opened.
+- **The same changes are open as PRs into PR #159's branch** (`drowzeys/TensorFold` `glm-moe-dsa-tp4`):
+  [#1](https://github.com/drowzeys/TensorFold/pull/1) `glm53-gb10-loading` (GB10 loading fixes),
+  [#2](https://github.com/drowzeys/TensorFold/pull/2) `glm53-dflash-default` (DFlash2 by default),
+  [#3](https://github.com/drowzeys/TensorFold/pull/3) `glm53-pinned-tiles` (pinned tile table),
+  [#4](https://github.com/drowzeys/TensorFold/pull/4) `glm53-roce-health` (RoCE health check, RoCE setup barrier) and
+  [#5](https://github.com/drowzeys/TensorFold/pull/5) `glm53-kv-cache-int4` (the int4 / int8 KV cache, stacked on #1).
 - **This recipe pins the fork commits** (`env.sh`: `757a851`, and `0c858e3` for `int4-262k`), so it works before any
   of that lands. The pins move only after a session re-measures the new tree through these scripts.
 
@@ -259,6 +260,7 @@ output stays in `tensorfold-four-spark-tp4/runs/`.
 | `recipe clone at <sha>, here <sha>` | `./glm53 sync` |
 | `no b12x RoCE module staged` | `./glm53 setup` (needs `gcc` + `libibverbs-dev`), or `TFS_ROCE=0` for NCCL reductions (measured 37.07 vs 41.42 tok/s) |
 | `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not this Spark's address on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` |
+| `3/4 clients joined` (or a peer's `client socket has timed out`), then `FATAL ... RoCE requested` | a rank loaded minutes after the others and missed b12x's 120 s setup rendezvous. Fixed by the rendezvous barrier in `tensorfold-four-spark-tp4/lib/tf_serve_patches.py` (every rank waits until all four have loaded); seeing it means this clone predates it: update the recipe (`git pull`, `./glm53 sync`), then `./glm53 down` and `./glm53 up` |
 | `context ... needs ... GiB of caches a rank, ... is free` / `LOW MEMORY` | page cache from a download or another load: `./glm53 fadvise`, stop other jobs |
 | `profile int4-262k is not validated yet` | intended; `--allow-unvalidated` only when asked to run it |
 | `START FAILED` / `FATAL` in a rank log | `./glm53 logs`, read `rank*.log` (`[tf_serve] FATAL ...`) and the watchdog log, then `./glm53 down` and `./glm53 preflight` |

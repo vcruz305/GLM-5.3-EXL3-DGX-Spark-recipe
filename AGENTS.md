@@ -36,7 +36,8 @@ Profiles: the default (`fast-160k`, 163,840 tokens) is the measured one. `--prof
   `glm_moe_dsa` family yet (PR #159 is open), and PR #159 alone does not load this pack (host memory and fp16
   tensors, see the folder README). `setup.sh` checks out the pinned `vcruz305/TensorFold` commits; every launcher
   refuses another tree.
-- **Do not repoint the pins at the upstream PR branches** (`glm53-gb10-loading` and the rest). They rename functions
+- **Do not repoint the pins at the upstream PR branches** (`glm53-gb10-loading` and the rest, open as
+  [drowzeys/TensorFold #1 to #5](https://github.com/drowzeys/TensorFold/pulls)). They rename functions
   the runtime check looks for, and none of them has been measured through these scripts.
 - **Do not `pip install b12x`.** PyPI 1.3.0 has no `comm.roce` module. `setup.sh` stages commit `b58f34e`.
 - **Do not serve the pack directory.** TensorFold needs the BF16 `lm_head.weight` and the fixed chat template; both

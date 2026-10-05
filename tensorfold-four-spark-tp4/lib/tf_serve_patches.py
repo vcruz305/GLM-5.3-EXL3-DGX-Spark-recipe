@@ -19,6 +19,9 @@ hash, poisoned]. This module adds only what `tensorfold serve` needs to run that
   rank with 5. Without this rank 0's HTTP server answers 500 and hangs the next request against dead followers.
 * Warm-up: rank 0 runs the sweep's warm-up (a 16-token serial and a 16-token drafted reply to "Hello") before the
   HTTP server starts, so the first client request does not pay first-use kernel builds.
+* RoCE setup barrier (`align_roce_rendezvous`): every rank waits until all four have loaded before b12x's own setup
+  rendezvous starts. Without it a rank that loads minutes after the others can miss that rendezvous ("3/4 clients
+  joined"), RoCE comes up on no rank and every rank exits 3.
 
 Pure helpers (resolve_mode, check_rows, check_startup, Policy) import nothing heavy and are unit-tested on a CPU.
 """
@@ -267,6 +270,40 @@ def post_load(engine, rank: int, policy: Policy, ctl: str, model_dir, log=_say) 
 
         engine.follow = follow
     log(f"[tf_serve] rank {rank}: READY ({'serving HTTP next' if rank == 0 else 'following rank 0'})")
+
+
+def align_roce_rendezvous(log=_say) -> None:
+    """Start b12x's RoCE setup on every rank at the same moment (RoCE profiles only).
+
+    RoceReduce opens its own gloo rendezvous (master port + 11, a fixed 120 s timeout) as soon as THIS rank's weights
+    are loaded. Ranks finish loading minutes apart (on the measured cluster rank 0, which hosts the rendezvous, took
+    ~150 s longer than the other three on every boot), and a follower's store client gives up ~3.5 min after it first
+    knocks (120 s, one jittered 30-66 s backoff, one more try). A follower could quit before rank 0 opened the
+    rendezvous: rank 0 logged "Timed out after 121 seconds waiting for clients. 3/4 clients joined.", RoCE came up on
+    no rank and every rank exited 3 (the NCCL fallback is refused). Every rank now first waits on the NCCL store
+    barrier (comm.ready on the master-port store that already joined all four; it names the wait every minute and
+    gives up after 1 h), so the gloo rendezvous starts within milliseconds on all four. Numerics, the rank-order
+    check and the NCCL fallback rule are unchanged."""
+    import time
+
+    from tensorfold.families.glm_moe_dsa.cuda import roce
+
+    orig = roce.RoceReduce.__init__
+    if getattr(orig, "_tf_serve_aligned", False):
+        return
+
+    @functools.wraps(orig)
+    def __init__(self, rank, world, master, port, nccl=None):
+        if nccl is not None:
+            t0 = time.monotonic()
+            nccl.ready("b12x_roce_setup")
+            log(f"[tf_serve] rank {rank}: all {world} ranks loaded; b12x RoCE rendezvous on {master}:{port} now "
+                f"(waited {time.monotonic() - t0:.0f} s for the slowest rank)")
+        orig(self, rank, world, master, port, nccl=nccl)
+
+    __init__._tf_serve_aligned = True
+    roce.RoceReduce.__init__ = __init__
+    log("[tf_serve] RoCE setup waits for every rank's load (NCCL store barrier) before the b12x gloo rendezvous")
 
 
 def install(family_module, rank: int, policy: Policy, ctl: str, log=_say) -> None:

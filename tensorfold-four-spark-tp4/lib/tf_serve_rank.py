@@ -5,7 +5,9 @@ configuration. Started by rank.sh (which sources env.sh, the profile and tools/b
 This is the launcher the measurements ran (the tf_serve stack, 2026-10-05) with three recipe changes: the b12x stage
 directory comes from B12X_STAGE instead of a fixed path, the RoCE GID message names no subnet, and an opt-in
 TFS_KV_DTYPE (int8 / int4, the glm53-kv-int4 TensorFold branch only) adds `--kv-dtype` plus a post-load check. With
-TFS_KV_DTYPE=bf16 (every measured profile) the argv and the engine are exactly the measured ones.
+TFS_KV_DTYPE=bf16 (every measured profile) the argv and the engine are exactly the measured ones. Since then every
+RoCE start also waits at a barrier before b12x's setup rendezvous (step 3, lib/tf_serve_patches.py
+align_roce_rendezvous); it changes when the RoCE setup starts, not what any rank computes.
 
 usage: tf_serve_rank.py --rank R [--dry-run]
 
@@ -16,6 +18,7 @@ What it does, in order (nothing in the clone is edited; every patch is applied h
  2. refusals (exit 3): RoCE env not as measured (NCCL_IB_HCA with '=', no RoCE v2 GID, spin limit), tile table or
     chat template bytes not the pinned ones, a stale DFLASH_CFG / PROFILE in the control dir is removed;
  3. the sweep's wrappers (lib/tf_speed_patches.py, verbatim): pin_tiles(load:...), patch_roce_check (hard stop);
+    with RoCE also align_roce_rendezvous (every rank loaded before b12x's 120 s setup rendezvous starts);
  4. lib/tf_serve_patches.install: post-load checks, health guard + consensus (Ops), DFlash2 default, warm-up;
  5. tensorfold.cli.main(["serve", VIEW, "--backend", "cuda", "--tp", "4", "--rank", R, ...]): rank 0 serves the
     OpenAI-compatible /v1 API, ranks 1-3 follow it.
@@ -241,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     Pt.pin_tiles(fused, "load:" + env["TFS_TILES"], log)
     if policy.roce:
         Pt.patch_roce_check(log)
+        Sp.align_roce_rendezvous(log)                               # all ranks loaded before b12x's 120 s gloo join
     Sp.install(family, a.rank, policy, ctl, log)
     kv = env.get("TFS_KV_DTYPE", "bf16")
     if kv != "bf16":                                                # opt-in, unvalidated: prove the cache it built

@@ -313,6 +313,10 @@ it does not reproduce the measured configuration:
 8. **No warm-up**; rank 0 warms up before HTTP starts.
 9. **Half-alive server.** A failed round leaves rank 0 answering against dead followers; every rank exits instead.
 10. **No consensus.** Ranks check policy and reply hashes after every request.
+11. **RoCE setup race.** b12x's setup rendezvous (master port + 11, a fixed 120 s timeout) starts as each rank finishes
+    loading, and ranks finish minutes apart, so a follower could give up before rank 0 opened it (`3/4 clients
+    joined`) and every rank exited 3. The wrapper holds every rank at a barrier on the NCCL store until all four have
+    loaded (the same barrier is in [drowzeys/TensorFold#4](https://github.com/drowzeys/TensorFold/pull/4)).
 
 And two loader fixes in the TensorFold tree itself (the `glm53-tp4-spark` commits): the PR's loader keeps every
 `safe_open` handle for the whole load (host RSS grew ~2.7 GiB per MoE layer and the first launch swapped), and GB10's
@@ -397,6 +401,7 @@ measure a new configuration, and label the numbers as new.
 | `REFUSE: NCCL_IB_HCA='=rocep1s0f0'` | start through `./glm53` / `serve.sh` / `rank.sh`, never by hand: `tools/b12x_env.sh` strips the `=` |
 | `REFUSE: no RoCE v2 GID for <ip>` | the hosts file's `fabric_ip` is not on `FABRIC_IFNAME`, or the RDMA device is not `ROCE_HCA`: `./glm53 init ... --force` re-detects both |
 | `decode-window reductions: NCCL` then `FATAL ... RoCE requested` | b12x stage or GID problem; `rank.sh preflight --rank R` prints the resolved GID |
+| `3/4 clients joined` / `client socket has timed out after 120000ms`, then `FATAL ... RoCE requested` | b12x's setup rendezvous started before the slowest rank had loaded. Fixed by the rendezvous barrier (`align_roce_rendezvous` in `lib/tf_serve_patches.py`; rank logs show `all 4 ranks loaded; b12x RoCE rendezvous ... now`); if you see it, update the recipe (`git pull`, `./glm53 sync`) and start again |
 | `context ... x 1 streams needs ... is free` / `LOW MEMORY` | page cache or another job's memory: `./glm53 fadvise`, check `preflight`; never lower `TF_GLM53_CACHE_RESERVE_GB` |
 | `GPU BUSY` / `a server rank already runs` / `PORT ... in use` | another job or this server: `./glm53 status`, `./glm53 down`, or stop the other job |
 | `REFUSE: no watchdog` / `watchdog flagged` | `./glm53 up` starts the watchdogs; after a trip `./glm53 logs`, read `/tmp/tf_serve_memwatch.VIOLATION`, then `./glm53 down` |
